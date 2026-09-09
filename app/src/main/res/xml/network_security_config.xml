@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Permits plain HTTP so the app can reach the local mirror-backend dev server over Wi-Fi
+     (see NetworkConfig.kt). Once BASE_URL points at a deployed HTTPS backend (e.g. Render),
+     no cleartext connection is ever attempted, so this has no practical effect - but it
+     should still be removed/tightened to a specific domain once that switch happens. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

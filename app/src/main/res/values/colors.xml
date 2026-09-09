@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Kept in sync with com.mirror.app.ui.theme.MirrorColorTokens (used for native XML
+         resources like the launcher icon and boot splash screen, which can't reference
+         Compose Color values directly). -->
+    <color name="mirror_primary">#994422</color>
+    <color name="mirror_on_primary">#FFFFFF</color>
+    <color name="mirror_secondary">#7B5804</color>
+    <color name="mirror_background">#FFF8F4</color>
+    <color name="mirror_surface">#FFF8F4</color>
+    <color name="mirror_primary_fixed">#FFDBCF</color>
+    <color name="mirror_error">#BA1A1A</color>
+    <!-- Matches the "M" reflection monogram brand mark used in the boot splash. -->
+    <color name="mirror_charcoal">#211D19</color>
+</resources>

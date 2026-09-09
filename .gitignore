@@ -1,0 +1,22 @@
+*.iml
+.gradle/
+/local.properties
+.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+app/build/
+app/release/
+app/debug/
+backend/build/
+backend/.gradle/
+backend/.kotlin/
+*.log
+.claude/
+
+# Keep the MediaPipe model committed - it's a required runtime asset, not a build artifact.
+!app/src/main/assets/face_landmarker.task

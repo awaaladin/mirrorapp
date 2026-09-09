@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mirror</string>
+
+    <string name="upload_title">Mirror</string>
+    <string name="upload_subtitle">Upload a photo to preview makeup</string>
+    <string name="upload_cta">Choose a photo</string>
+    <string name="upload_change_photo">Choose a different photo</string>
+    <string name="upload_detecting">Detecting face landmarks…</string>
+    <string name="upload_show_landmarks">Show landmark debug overlay</string>
+    <string name="upload_landmark_count">%1$d landmark points detected</string>
+
+    <string name="error_no_face_detected">We couldn\'t find a face in this photo. Try a clearer, front-facing photo with good lighting.</string>
+    <string name="error_multiple_faces">This photo has more than one face. Mirror works best with a single face per photo for now.</string>
+    <string name="error_image_load_failed">We couldn\'t open that image. Please try a different photo.</string>
+    <string name="error_landmark_detection_failed">Something went wrong while analyzing this photo. Please try again.</string>
+    <string name="error_low_quality_hint">Tip: photos that are too dark or blurry make face detection less reliable.</string>
+    <string name="action_retry">Try again</string>
+</resources>

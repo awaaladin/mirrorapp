@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Mirror" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Shown instantly on cold start via androidx.core.splashscreen, before Compose has
+         inflated anything - avoids a blank white flash and gets the brand mark on screen
+         immediately. Hands off to Theme.Mirror once the Activity is ready to draw. -->
+    <style name="Theme.Mirror.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/mirror_surface</item>
+        <item name="postSplashScreenTheme">@style/Theme.Mirror</item>
+    </style>
+</resources>
