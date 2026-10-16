@@ -9,13 +9,46 @@ import androidx.lifecycle.viewModelScope
 import com.mirror.app.core.result.AppError
 import com.mirror.app.core.result.AppResult
 import com.mirror.app.data.landmark.FaceLandmarkerHelper
+import com.mirror.app.data.shades.CustomShadeStore
+import com.mirror.app.data.shades.ShadeRepository
+import com.mirror.app.domain.model.FaceLandmarkResult
+import com.mirror.app.domain.model.LashStyle
+import com.mirror.app.domain.model.ShadeItem
+import com.mirror.app.ui.editor.EditorCategory
+import com.mirror.app.ui.editor.MakeupLayer
+import com.mirror.app.ui.editor.MakeupSelection
+import com.mirror.app.ui.editor.cropToFace
+import com.mirror.app.ui.editor.editorShadesByCategory
+import com.mirror.app.ui.editor.isSteepAngle
+import com.mirror.app.ui.editor.renderMakeupBitmap
+import com.mirror.app.ui.editor.resolveMakeupLayer
+import com.mirror.app.ui.editor.toShadeCategory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import java.util.UUID
+
+/** A makeup formulation saved for this app session (kept in memory for the lifetime of this
+ *  ViewModel, not persisted to disk yet) - shows up in Dashboard's Recent Looks. Carries the
+ *  full state needed to re-open it in the editor (not just a flattened thumbnail), so tapping
+ *  it from Dashboard can actually resume editing rather than just showing a picture. */
+data class SavedLook(
+    val id: String,
+    val name: String,
+    val createdAtEpochMillis: Long,
+    val thumbnail: Bitmap,
+    val sourcePhoto: Bitmap,
+    val landmarks: FaceLandmarkResult,
+    val selections: Map<EditorCategory, MakeupSelection>,
+    val lashStyle: LashStyle?
+)
 
 /** Default production bitmap decoder, extracted so tests can substitute a fake without needing
  *  a real Android runtime (Robolectric) just to exercise ViewModel state transitions. */
@@ -34,15 +67,58 @@ internal suspend fun decodeBitmapFromUri(uri: Uri, contentResolver: ContentResol
 
 class UploadViewModel(
     private val faceLandmarkerHelper: FaceLandmarkerHelper,
+    private val shadeRepository: ShadeRepository? = null,
+    private val customShadeStore: CustomShadeStore? = null,
     private val decodeBitmap: suspend (Uri, ContentResolver) -> Bitmap? = ::decodeBitmapFromUri
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UploadUiState>(UploadUiState.Idle)
     val uiState: StateFlow<UploadUiState> = _uiState.asStateFlow()
 
+    // Seeded with the bundled offline set so the editor always has something to show, then
+    // replaced with the live backend catalog once/if a fetch succeeds - see refreshShadeCatalog().
+    private val _baseCatalog = MutableStateFlow(editorShadesByCategory)
+
+    // User-created shades (see addCustomShade) - kept separate from _baseCatalog and merged in
+    // below, rather than folded into it directly, so a later refreshShadeCatalog() replacing
+    // _baseCatalog wholesale from the network can never wipe out something the user made.
+    private val _customShades = MutableStateFlow(customShadeStore?.loadAll() ?: emptyMap())
+
+    val shadeCatalog: StateFlow<Map<EditorCategory, List<ShadeItem>>> =
+        combine(_baseCatalog, _customShades) { base, custom ->
+            EditorCategory.entries.associateWith { category -> base[category].orEmpty() + custom[category].orEmpty() }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, editorShadesByCategory)
+
+    private var catalogRefreshJob: kotlinx.coroutines.Job? = null
+
+    // Keyed per category so switching tabs in the editor never loses what was picked elsewhere,
+    // and so lips/foundation/eyes/etc. can all render on the face at the same time. Held here
+    // rather than as local Compose state in EditorScreen so BeforeAfterScreen and Save
+    // Formulation can see the same live selections without threading them through navigation.
+    private val _selections = MutableStateFlow<Map<EditorCategory, MakeupSelection>>(emptyMap())
+    val selections: StateFlow<Map<EditorCategory, MakeupSelection>> = _selections.asStateFlow()
+
+    private val _savedLooks = MutableStateFlow<List<SavedLook>>(emptyList())
+    val savedLooks: StateFlow<List<SavedLook>> = _savedLooks.asStateFlow()
+
+    // Lashes isn't a color pick like the other categories (mascara is always near-black
+    // regardless of "shade"), so it gets its own style-based state rather than a MakeupSelection.
+    private val _lashStyle = MutableStateFlow<LashStyle?>(null)
+    val lashStyle: StateFlow<LashStyle?> = _lashStyle.asStateFlow()
+
+    fun selectLashStyle(style: LashStyle) {
+        _lashStyle.value = style
+    }
+
+    fun clearLashStyle() {
+        _lashStyle.value = null
+    }
+
     /** Called when the user picks a photo from the gallery/photo picker. */
     fun onPhotoPicked(uri: Uri, contentResolver: ContentResolver) {
         _uiState.value = UploadUiState.Detecting
+        _selections.value = emptyMap()
+        _lashStyle.value = null
         viewModelScope.launch {
             val bitmap = decodeBitmap(uri, contentResolver)
             if (bitmap == null) {
@@ -57,7 +133,8 @@ class UploadViewModel(
                 is AppResult.Success -> {
                     _uiState.value = UploadUiState.Detected(
                         photo = bitmap,
-                        landmarks = result.data
+                        landmarks = result.data,
+                        isSteepAngle = isSteepAngle(result.data)
                     )
                 }
                 is AppResult.Failure -> {
@@ -80,6 +157,134 @@ class UploadViewModel(
 
     fun reset() {
         _uiState.value = UploadUiState.Idle
+        _selections.value = emptyMap()
+        _lashStyle.value = null
+    }
+
+    fun selectShade(category: EditorCategory, shadeId: String) {
+        val current = _selections.value[category] ?: MakeupSelection()
+        _selections.value = _selections.value + (category to current.copy(shadeId = shadeId))
+    }
+
+    /** Removes whatever shade is applied to [category], so that layer stops rendering entirely -
+     *  the "take it off" counterpart to selectShade(). */
+    fun clearShade(category: EditorCategory) {
+        val current = _selections.value[category] ?: return
+        _selections.value = _selections.value + (category to current.copy(shadeId = null))
+    }
+
+    fun setIntensity(category: EditorCategory, value: Float) {
+        val current = _selections.value[category] ?: MakeupSelection()
+        _selections.value = _selections.value + (category to current.copy(intensity = value))
+    }
+
+    fun resolvedLayer(category: EditorCategory): MakeupLayer? =
+        resolveMakeupLayer(category, _selections.value, shadeCatalog.value)
+
+    /** Fetches the full live shade catalog from mirrorcentral and swaps it in on success. Called
+     *  once when the editor opens. On failure (offline, server unreachable) this is a no-op -
+     *  whatever catalog is already showing (the bundled default) stays put rather than being
+     *  cleared. Search within a category is done client-side against whatever catalog is
+     *  currently loaded (see EditorScreen), not re-fetched per keystroke. */
+    fun refreshShadeCatalog() {
+        val repository = shadeRepository ?: return
+        if (catalogRefreshJob?.isActive == true) return
+        catalogRefreshJob = viewModelScope.launch {
+            val result = repository.fetchCatalog()
+            if (result != null) {
+                // Per-category fallback, not a wholesale replace: a category the backend
+                // doesn't (yet) have any shades for would otherwise get wiped to an empty list
+                // on every successful refresh, silently breaking anything backend-less (e.g. a
+                // brand-new local-only category) even though the network call "succeeded".
+                _baseCatalog.value = EditorCategory.entries.associateWith { category ->
+                    result[category]?.takeIf { it.isNotEmpty() } ?: editorShadesByCategory[category].orEmpty()
+                }
+            }
+        }
+    }
+
+    /** Creates a user-defined shade for [category] from a hex color string, persists it locally
+     *  (available offline, on every account tier - see CustomShadeStore), and makes it
+     *  immediately selectable alongside the certified catalog. Returns false without changing
+     *  anything if [hexColor] isn't a valid color or [name] is blank. */
+    fun addCustomShade(category: EditorCategory, name: String, hexColor: String): Boolean {
+        val trimmedName = name.trim()
+        if (trimmedName.isEmpty()) return false
+        val normalizedHex = if (hexColor.startsWith("#")) hexColor else "#$hexColor"
+        try {
+            android.graphics.Color.parseColor(normalizedHex)
+        } catch (e: IllegalArgumentException) {
+            return false
+        }
+
+        val shade = ShadeItem(
+            id = "custom-${UUID.randomUUID()}",
+            name = trimmedName,
+            hexColor = normalizedHex,
+            category = category.toShadeCategory(),
+            finish = com.mirror.app.domain.model.ShadeFinish.MATTE
+        )
+        customShadeStore?.add(category, shade)
+        _customShades.value = _customShades.value + (category to (_customShades.value[category].orEmpty() + shade))
+        return true
+    }
+
+    /** Renders the current selections onto the detected photo and stores the result as a
+     *  SavedLook for this session - this is what "Save Formulation" actually does. No-ops if
+     *  there's no detected face to render against. [name] is whatever the user typed in the
+     *  save dialog; falls back to an auto-numbered name if left blank. */
+    fun saveCurrentLook(name: String) {
+        val state = _uiState.value as? UploadUiState.Detected ?: return
+        val currentSelections = _selections.value
+        val currentCatalog = shadeCatalog.value
+        val currentLashStyle = _lashStyle.value
+        viewModelScope.launch(Dispatchers.Default) {
+            val faceCrop = cropToFace(state.photo, state.landmarks)
+            val thumbnail = renderMakeupBitmap(
+                photo = faceCrop.bitmap,
+                landmarks = faceCrop.landmarks,
+                foundation = resolveMakeupLayer(EditorCategory.FOUNDATION, currentSelections, currentCatalog),
+                cheek = resolveMakeupLayer(EditorCategory.CHEEK, currentSelections, currentCatalog),
+                lips = resolveMakeupLayer(EditorCategory.LIPS, currentSelections, currentCatalog),
+                eyeshadow = resolveMakeupLayer(EditorCategory.EYES, currentSelections, currentCatalog),
+                eyeliner = resolveMakeupLayer(EditorCategory.EYELINER, currentSelections, currentCatalog),
+                eyeColor = resolveMakeupLayer(EditorCategory.EYE_COLOR, currentSelections, currentCatalog),
+                lashStyle = currentLashStyle,
+                brow = resolveMakeupLayer(EditorCategory.BROWS, currentSelections, currentCatalog),
+                gele = resolveMakeupLayer(EditorCategory.GELE, currentSelections, currentCatalog)
+            )
+            val trimmedName = name.trim()
+            val look = SavedLook(
+                id = UUID.randomUUID().toString(),
+                name = trimmedName.ifEmpty { "Look ${_savedLooks.value.size + 1}" },
+                createdAtEpochMillis = System.currentTimeMillis(),
+                thumbnail = thumbnail,
+                sourcePhoto = state.photo,
+                landmarks = state.landmarks,
+                selections = currentSelections,
+                lashStyle = currentLashStyle
+            )
+            _savedLooks.value = listOf(look) + _savedLooks.value
+        }
+    }
+
+    /** Reopens a previously saved look in the editor - restores the source photo, landmarks,
+     *  and every category's selection exactly as they were when it was saved, so tapping a
+     *  Recent Look from Dashboard resumes editing instead of just showing a static picture. */
+    fun loadLook(look: SavedLook) {
+        _uiState.value = UploadUiState.Detected(
+            photo = look.sourcePhoto,
+            landmarks = look.landmarks,
+            isSteepAngle = isSteepAngle(look.landmarks)
+        )
+        _selections.value = look.selections
+        _lashStyle.value = look.lashStyle
+    }
+
+    /** Removes a saved look from Recent Looks for good - there's no on-device persistence to
+     *  clean up, since SavedLook only ever lived in this in-memory list. */
+    fun deleteLook(id: String) {
+        _savedLooks.value = _savedLooks.value.filterNot { it.id == id }
     }
 
     override fun onCleared() {

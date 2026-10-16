@@ -1,8 +1,19 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.google.services)
+}
+
+// Release signing credentials live in local.properties (gitignored, machine-local) rather than
+// here, since this file is committed - see local.properties for where the keystore itself lives
+// and why it must never be lost (every future update needs to be signed with the same key).
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
 }
 
 android {
@@ -13,14 +24,26 @@ android {
         applicationId = "com.mirror.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // MediaPipe ships native (.so) libraries; only package the ABIs we can test on
         // real devices/emulators for MVP to keep APK size reasonable.
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            val storeFilePath = localProperties.getProperty("MIRROR_RELEASE_STORE_FILE")
+            if (storeFilePath != null) {
+                storeFile = file(storeFilePath)
+                storePassword = localProperties.getProperty("MIRROR_RELEASE_STORE_PASSWORD")
+                keyAlias = localProperties.getProperty("MIRROR_RELEASE_KEY_ALIAS")
+                keyPassword = localProperties.getProperty("MIRROR_RELEASE_KEY_PASSWORD")
+            }
         }
     }
 
@@ -31,6 +54,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Falls back to no signing config (an unsigned, uninstallable build) if
+            // local.properties doesn't have the release signing entries - e.g. CI or a
+            // teammate's machine without the keystore - rather than failing the build outright.
+            if (localProperties.getProperty("MIRROR_RELEASE_STORE_FILE") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         debug {
             isMinifyEnabled = false
@@ -52,6 +81,9 @@ android {
     }
     buildFeatures {
         compose = true
+        // Needed for BuildConfig.VERSION_CODE, used by the in-app update check (see
+        // ui/update/UpdateCheckViewModel.kt) - AGP 8+ disables BuildConfig generation by default.
+        buildConfig = true
     }
     packaging {
         resources {
@@ -91,6 +123,16 @@ dependencies {
     implementation(libs.retrofit.converter.kotlinx.serialization)
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.kotlinx.serialization.json)
+
+    // Push notifications (update alerts) - sent by mirrorcentral via the Firebase Admin SDK.
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging.ktx)
+
+    // Google Sign-In - Credential Manager is Google's current recommended API, replacing the
+    // older GoogleSignInClient/play-services-auth-only approach.
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

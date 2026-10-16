@@ -20,15 +20,18 @@ import com.mirror.app.ui.auth.LoginScreen
 import com.mirror.app.ui.auth.SignUpScreen
 import com.mirror.app.ui.beforeafter.BeforeAfterScreen
 import com.mirror.app.ui.clients.ClientDirectoryScreen
+import com.mirror.app.ui.clients.ClientDirectoryViewModel
 import com.mirror.app.ui.components.MirrorBottomNav
 import com.mirror.app.ui.components.MirrorTopBar
+import com.mirror.app.domain.model.AccountType
 import com.mirror.app.ui.dashboard.DashboardScreen
 import com.mirror.app.ui.editor.EditorScreen
 import com.mirror.app.ui.library.LibraryScreen
 import com.mirror.app.ui.onboarding.OnboardingScreen
 import com.mirror.app.ui.settings.SettingsScreen
+import com.mirror.app.ui.showroom.ShowroomScreen
+import com.mirror.app.ui.showroom.ShowroomViewModel
 import com.mirror.app.ui.splash.SplashScreen
-import com.mirror.app.ui.upload.UploadUiState
 import com.mirror.app.ui.upload.UploadViewModel
 
 private val routesWithBottomNav = setOf(
@@ -41,7 +44,7 @@ private val routesWithTopBar = setOf(
 private val unauthenticatedRoutes = setOf(MirrorRoutes.SPLASH, MirrorRoutes.LOGIN, MirrorRoutes.SIGNUP)
 
 @Composable
-fun MirrorNavHost(uploadViewModel: UploadViewModel, authViewModel: AuthViewModel) {
+fun MirrorNavHost(uploadViewModel: UploadViewModel, authViewModel: AuthViewModel, clientDirectoryViewModel: ClientDirectoryViewModel, showroomViewModel: ShowroomViewModel) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -59,7 +62,15 @@ fun MirrorNavHost(uploadViewModel: UploadViewModel, authViewModel: AuthViewModel
     }
 
     Scaffold(
-        topBar = { if (currentRoute in routesWithTopBar) MirrorTopBar() },
+        topBar = {
+            if (currentRoute in routesWithTopBar) {
+                MirrorTopBar(onOpenProfile = {
+                    if (currentRoute != MirrorRoutes.SETTINGS) {
+                        navController.navigate(MirrorRoutes.SETTINGS)
+                    }
+                })
+            }
+        },
         bottomBar = {
             if (currentRoute in routesWithBottomNav) {
                 MirrorBottomNav(currentRoute = currentRoute) { destination ->
@@ -129,10 +140,20 @@ fun MirrorNavHost(uploadViewModel: UploadViewModel, authViewModel: AuthViewModel
                 })
             }
             composable(MirrorRoutes.DASHBOARD) {
+                val savedLooks by uploadViewModel.savedLooks.collectAsState()
+                val accountType = (sessionState as? AuthSessionState.SignedIn)?.user?.accountType ?: AccountType.CONSUMER
                 DashboardScreen(
+                    savedLooks = savedLooks,
+                    accountType = accountType,
                     onStartSimulation = { navController.navigate(MirrorRoutes.EDITOR) },
                     onOpenClients = { navController.navigate(MirrorRoutes.CLIENTS) },
-                    onOpenLibrary = { navController.navigate(MirrorRoutes.LIBRARY) }
+                    onOpenLibrary = { navController.navigate(MirrorRoutes.LIBRARY) },
+                    onOpenShowroom = { navController.navigate(MirrorRoutes.SHOWROOM) },
+                    onOpenLook = { look ->
+                        uploadViewModel.loadLook(look)
+                        navController.navigate(MirrorRoutes.EDITOR)
+                    },
+                    onDeleteLook = { look -> uploadViewModel.deleteLook(look.id) }
                 )
             }
             composable(MirrorRoutes.EDITOR) {
@@ -142,23 +163,20 @@ fun MirrorNavHost(uploadViewModel: UploadViewModel, authViewModel: AuthViewModel
                     onSplitDiff = { navController.navigate(MirrorRoutes.BEFORE_AFTER) }
                 )
             }
+            composable(MirrorRoutes.SHOWROOM) {
+                ShowroomScreen(viewModel = showroomViewModel, onBack = { navController.popBackStack() })
+            }
             composable(MirrorRoutes.LIBRARY) {
-                LibraryScreen()
+                LibraryScreen(viewModel = uploadViewModel)
             }
             composable(MirrorRoutes.CLIENTS) {
-                ClientDirectoryScreen(onNewConsultation = { navController.navigate(MirrorRoutes.EDITOR) })
+                ClientDirectoryScreen(viewModel = clientDirectoryViewModel, onNewConsultation = { navController.navigate(MirrorRoutes.EDITOR) })
             }
             composable(MirrorRoutes.SETTINGS) {
                 SettingsScreen(authViewModel = authViewModel)
             }
             composable(MirrorRoutes.BEFORE_AFTER) {
-                val state by uploadViewModel.uiState.collectAsState()
-                val detected = state as? UploadUiState.Detected
-                if (detected != null) {
-                    BeforeAfterScreen(photo = detected.photo, onBack = { navController.popBackStack() })
-                } else {
-                    LaunchedEffect(Unit) { navController.popBackStack() }
-                }
+                BeforeAfterScreen(viewModel = uploadViewModel, onBack = { navController.popBackStack() })
             }
         }
     }

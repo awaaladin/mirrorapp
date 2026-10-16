@@ -11,7 +11,10 @@ sealed class UploadUiState {
     data class Detected(
         val photo: Bitmap,
         val landmarks: FaceLandmarkResult,
-        val showDebugOverlay: Boolean = true
+        val showDebugOverlay: Boolean = true,
+        /** True when the photo is close enough to profile that the render will visibly
+         *  foreshorten one side of the face - see [com.mirror.app.ui.editor.isSteepAngle]. */
+        val isSteepAngle: Boolean = false
     ) : UploadUiState()
 
     data class Error(

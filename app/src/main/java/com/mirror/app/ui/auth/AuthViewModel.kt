@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mirror.app.core.result.AppError
 import com.mirror.app.core.result.AppResult
+import com.mirror.app.domain.model.AccountType
 import com.mirror.app.domain.model.AuthUser
 import com.mirror.app.domain.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,7 +36,7 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     private val _formState = MutableStateFlow<AuthFormState>(AuthFormState.Idle)
     val formState: StateFlow<AuthFormState> = _formState.asStateFlow()
 
-    fun signUp(email: String, password: String) {
+    fun signUp(email: String, password: String, accountType: AccountType = AccountType.CONSUMER) {
         val validationError = validate(email, password)
         if (validationError != null) {
             _formState.value = AuthFormState.Error(validationError)
@@ -43,7 +44,7 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
         }
         _formState.value = AuthFormState.Submitting
         viewModelScope.launch {
-            when (val result = authRepository.signUp(email.trim(), password)) {
+            when (val result = authRepository.signUp(email.trim(), password, accountType)) {
                 is AppResult.Success -> _formState.value = AuthFormState.Idle
                 is AppResult.Failure -> _formState.value = AuthFormState.Error(result.error.toMessage())
             }

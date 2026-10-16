@@ -14,5 +14,11 @@ data class ClientProfile(
 
 enum class ClientTag {
     SELF,
-    CLIENT
+    CLIENT;
+
+    companion object {
+        /** Mirrors mirrorcentral's `ClientTag` enum ("self" / "client"). */
+        fun fromWire(value: String?): ClientTag =
+            entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: CLIENT
+    }
 }

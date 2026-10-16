@@ -19,6 +19,7 @@ object MirrorRoutes {
     const val CLIENTS = "clients"
     const val SETTINGS = "settings"
     const val BEFORE_AFTER = "before_after"
+    const val SHOWROOM = "showroom"
 }
 
 /** The 5 permanent bottom navigation destinations, in display order. */

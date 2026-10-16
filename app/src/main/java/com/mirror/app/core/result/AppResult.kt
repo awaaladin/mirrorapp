@@ -35,4 +35,7 @@ sealed class AppError {
     data object AccountNotFound : AppError()
     data object NetworkUnavailable : AppError()
     data class AuthFailed(val message: String) : AppError()
+
+    // Generic authenticated-request failures (client directory, etc.)
+    data class RequestFailed(val message: String) : AppError()
 }

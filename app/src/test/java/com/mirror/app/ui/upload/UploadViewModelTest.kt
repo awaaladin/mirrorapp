@@ -44,7 +44,7 @@ class UploadViewModelTest {
     }
 
     private fun viewModel(decodeBitmap: suspend (Uri, ContentResolver) -> Bitmap? = { _, _ -> fakeBitmap }) =
-        UploadViewModel(faceLandmarkerHelper, decodeBitmap)
+        UploadViewModel(faceLandmarkerHelper, decodeBitmap = decodeBitmap)
 
     @Test
     fun `initial state is Idle`() = runTest {

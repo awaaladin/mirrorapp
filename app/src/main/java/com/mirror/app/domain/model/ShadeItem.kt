@@ -20,7 +20,11 @@ enum class ShadeCategory {
     FOUNDATION,
     POWDER,
     EYESHADOW,
-    BLUSH
+    BLUSH,
+    EYEBROW,
+    GELE,
+    EYELINER,
+    EYE_COLOR
 }
 
 enum class ShadeFinish {

@@ -1,8 +1,11 @@
 package com.mirror.app.ui.auth
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,9 +32,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.mirror.app.domain.model.AccountType
 
 @Composable
 fun LoginScreen(viewModel: AuthViewModel, onNavigateToSignUp: () -> Unit) {
@@ -40,7 +45,8 @@ fun LoginScreen(viewModel: AuthViewModel, onNavigateToSignUp: () -> Unit) {
         title = "Welcome back",
         subtitle = "Sign in to continue your consultations and saved looks.",
         submitLabel = "SIGN IN",
-        onSubmit = { email, password -> viewModel.logIn(email, password) },
+        showAccountTypeSelector = false,
+        onSubmit = { email, password, _ -> viewModel.logIn(email, password) },
         footerPrompt = "Don't have an account?",
         footerActionLabel = "SIGN UP",
         onFooterAction = onNavigateToSignUp
@@ -54,7 +60,8 @@ fun SignUpScreen(viewModel: AuthViewModel, onNavigateToLogin: () -> Unit) {
         title = "Create your atelier account",
         subtitle = "Save looks, manage clients, and pick up where you left off.",
         submitLabel = "CREATE ACCOUNT",
-        onSubmit = { email, password -> viewModel.signUp(email, password) },
+        showAccountTypeSelector = true,
+        onSubmit = { email, password, accountType -> viewModel.signUp(email, password, accountType) },
         footerPrompt = "Already have an account?",
         footerActionLabel = "SIGN IN",
         onFooterAction = onNavigateToLogin
@@ -67,7 +74,8 @@ private fun AuthScreen(
     title: String,
     subtitle: String,
     submitLabel: String,
-    onSubmit: (email: String, password: String) -> Unit,
+    showAccountTypeSelector: Boolean,
+    onSubmit: (email: String, password: String, accountType: AccountType) -> Unit,
     footerPrompt: String,
     footerActionLabel: String,
     onFooterAction: () -> Unit
@@ -75,6 +83,7 @@ private fun AuthScreen(
     val formState by viewModel.formState.collectAsState()
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var accountType by remember { mutableStateOf(AccountType.CONSUMER) }
     val isSubmitting = formState is AuthFormState.Submitting
 
     Column(
@@ -139,6 +148,51 @@ private fun AuthScreen(
             )
         )
 
+        if (showAccountTypeSelector) {
+            Text(
+                "ACCOUNT TYPE",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 20.dp, bottom = 8.dp)
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.small)
+                    .padding(4.dp)
+            ) {
+                listOf(
+                    AccountType.CONSUMER to "Personal",
+                    AccountType.BUSINESS to "Pro / MUA"
+                ).forEach { (value, label) ->
+                    val selected = accountType == value
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(MaterialTheme.shapes.small)
+                            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+                            .clickable { accountType = value }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            label.uppercase(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            Text(
+                if (accountType == AccountType.BUSINESS)
+                    "Unlocks the Client Mode directory for managing bridal & editorial bookings."
+                else "You can upgrade to Pro any time from Settings.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
+
         val error = (formState as? AuthFormState.Error)?.message
         if (error != null) {
             Text(
@@ -150,7 +204,7 @@ private fun AuthScreen(
         }
 
         Button(
-            onClick = { onSubmit(email, password) },
+            onClick = { onSubmit(email, password, accountType) },
             enabled = !isSubmitting,
             modifier = Modifier.fillMaxWidth().height(52.dp).padding(top = 20.dp),
             shape = MaterialTheme.shapes.medium,

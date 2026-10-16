@@ -19,13 +19,16 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.mirror.app.domain.model.AccountType
 import com.mirror.app.ui.auth.AuthSessionState
 import com.mirror.app.ui.auth.AuthViewModel
 
 @Composable
 fun SettingsScreen(authViewModel: AuthViewModel) {
     val sessionState by authViewModel.sessionState.collectAsState()
-    val email = (sessionState as? AuthSessionState.SignedIn)?.user?.email
+    val user = (sessionState as? AuthSessionState.SignedIn)?.user
+    val email = user?.email
+    val isPro = user?.accountType == AccountType.BUSINESS
 
     Column(
         modifier = Modifier
@@ -54,10 +57,17 @@ fun SettingsScreen(authViewModel: AuthViewModel) {
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(top = 2.dp)
             )
+            Text(
+                if (isPro) "PRO / MUA ACCOUNT" else "PERSONAL ACCOUNT",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 8.dp)
+            )
         }
 
         Text(
-            "Entitlements, the shade library unlock, and Pro mode settings are coming in a later phase.",
+            if (isPro) "Your Pro account unlocks Client Mode - manage client profiles from the Clients tab."
+            else "Upgrading to Pro unlocks Client Mode for bridal & editorial consultations. Self-serve upgrade is coming in a later phase - for now, this is set when you sign up.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)

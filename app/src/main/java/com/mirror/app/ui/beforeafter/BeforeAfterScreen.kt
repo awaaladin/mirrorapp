@@ -1,6 +1,5 @@
 package com.mirror.app.ui.beforeafter
 
-import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -31,30 +32,62 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import com.mirror.app.ui.editor.EditorCategory
+import com.mirror.app.ui.editor.cropToFace
+import com.mirror.app.ui.editor.renderMakeupBitmap
+import com.mirror.app.ui.editor.resolveMakeupLayer
+import com.mirror.app.ui.upload.UploadUiState
+import com.mirror.app.ui.upload.UploadViewModel
+import androidx.compose.runtime.collectAsState
 
 /**
- * Interactive before/after wipe comparator. Real makeup rendering doesn't exist yet
- * (that's Phase 2), so the "before" layer is a desaturated stand-in for a bare-skin photo
- * rather than a genuinely different image - it demonstrates the wipe interaction ahead of
- * the real renderer being wired in. No formulation/session data is fabricated here: this
- * screen only shows the photo the user actually picked and a drag-controlled split.
+ * Interactive before/after wipe comparator. "Before" is the actual detected-face crop with no
+ * makeup; "after" is that same crop rendered through [renderMakeupBitmap] with whatever the
+ * user picked in the editor - the same shared-selection state EditorScreen reads, via
+ * [UploadViewModel], so this is always a true diff of the live formulation, not a placeholder.
  */
 @Composable
-fun BeforeAfterScreen(photo: Bitmap, onBack: () -> Unit) {
+fun BeforeAfterScreen(viewModel: UploadViewModel, onBack: () -> Unit) {
+    val uiState by viewModel.uiState.collectAsState()
+    val selections by viewModel.selections.collectAsState()
+    val shadeCatalog by viewModel.shadeCatalog.collectAsState()
+    val lashStyle by viewModel.lashStyle.collectAsState()
+    val detected = uiState as? UploadUiState.Detected
+
+    if (detected == null) {
+        LaunchedEffect(Unit) { onBack() }
+        return
+    }
+
+    val faceCrop = remember(detected.photo, detected.landmarks) { cropToFace(detected.photo, detected.landmarks) }
+    val afterBitmap = remember(faceCrop, selections, shadeCatalog, lashStyle) {
+        renderMakeupBitmap(
+            photo = faceCrop.bitmap,
+            landmarks = faceCrop.landmarks,
+            foundation = resolveMakeupLayer(EditorCategory.FOUNDATION, selections, shadeCatalog),
+            cheek = resolveMakeupLayer(EditorCategory.CHEEK, selections, shadeCatalog),
+            lips = resolveMakeupLayer(EditorCategory.LIPS, selections, shadeCatalog),
+            eyeshadow = resolveMakeupLayer(EditorCategory.EYES, selections, shadeCatalog),
+            eyeliner = resolveMakeupLayer(EditorCategory.EYELINER, selections, shadeCatalog),
+            eyeColor = resolveMakeupLayer(EditorCategory.EYE_COLOR, selections, shadeCatalog),
+            lashStyle = lashStyle,
+            brow = resolveMakeupLayer(EditorCategory.BROWS, selections, shadeCatalog),
+            gele = resolveMakeupLayer(EditorCategory.GELE, selections, shadeCatalog)
+        )
+    }
+
     var wipeFraction by remember { mutableFloatStateOf(0.5f) }
-    val desaturated = remember { ColorMatrix().apply { setToSaturation(0f) } }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.inverseSurface)
+                .statusBarsPadding()
                 .padding(horizontal = 12.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -85,7 +118,7 @@ fun BeforeAfterScreen(photo: Bitmap, onBack: () -> Unit) {
                 ) {
                     val fullWidth = maxWidth
                     Image(
-                        bitmap = photo.asImageBitmap(),
+                        bitmap = afterBitmap.asImageBitmap(),
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -97,11 +130,10 @@ fun BeforeAfterScreen(photo: Bitmap, onBack: () -> Unit) {
                             .clipToBounds()
                     ) {
                         Image(
-                            bitmap = photo.asImageBitmap(),
+                            bitmap = faceCrop.bitmap.asImageBitmap(),
                             contentDescription = null,
                             modifier = Modifier.width(fullWidth).fillMaxHeight(),
-                            contentScale = ContentScale.Crop,
-                            colorFilter = ColorFilter.colorMatrix(desaturated)
+                            contentScale = ContentScale.Crop
                         )
                     }
                     Box(
@@ -137,7 +169,7 @@ fun BeforeAfterScreen(photo: Bitmap, onBack: () -> Unit) {
 
             item {
                 Text(
-                    "Drag across the photo to compare. The \"before\" side is a desaturated placeholder until real makeup rendering (Phase 2) is wired in - it isn't a second photo.",
+                    "Drag across the photo to compare your actual formulation against the original portrait.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)

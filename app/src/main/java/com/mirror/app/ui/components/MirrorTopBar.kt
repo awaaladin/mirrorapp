@@ -1,10 +1,13 @@
 package com.mirror.app.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FilterVintage
@@ -25,10 +28,12 @@ import androidx.compose.ui.unit.dp
  * BeforeAfterScreen) since those carry session-specific controls (undo/redo/save, export).
  */
 @Composable
-fun MirrorTopBar() {
+fun MirrorTopBar(onOpenProfile: () -> Unit = {}) {
     Row(
         modifier = Modifier
+            .fillMaxWidth()
             .background(MaterialTheme.colorScheme.inverseSurface)
+            .statusBarsPadding()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
@@ -67,7 +72,8 @@ fun MirrorTopBar() {
                 modifier = Modifier
                     .padding(start = 12.dp)
                     .size(32.dp)
-                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+                    .background(MaterialTheme.colorScheme.primary, CircleShape)
+                    .clickable(onClick = onOpenProfile),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
