@@ -51,6 +51,7 @@ import com.mirror.app.ui.editor.EditorCategory
 import com.mirror.app.ui.editor.FaceCanvas
 import com.mirror.app.ui.editor.MakeupSelection
 import com.mirror.app.ui.editor.cropToFace
+import com.mirror.app.ui.editor.resolveMakeupLayer
 import com.mirror.app.ui.upload.UploadErrorMessage
 import com.mirror.app.ui.upload.UploadUiState
 
@@ -98,10 +99,13 @@ fun ShowroomScreen(viewModel: ShowroomViewModel, onBack: () -> Unit) {
                     FaceCanvas(
                         photo = faceCrop.bitmap,
                         landmarks = faceCrop.landmarks,
-                        foundation = viewModel.layer(EditorCategory.FOUNDATION),
-                        cheek = viewModel.layer(EditorCategory.CHEEK),
-                        lips = viewModel.layer(EditorCategory.LIPS),
-                        brow = viewModel.layer(EditorCategory.BROWS),
+                        // Resolved from the collected `selections`/`catalog` State (not by asking
+                        // the ViewModel) so this part of the screen recomposes when a shade is
+                        // tapped - reading the StateFlow's raw value here left the photo frozen.
+                        foundation = resolveMakeupLayer(EditorCategory.FOUNDATION, selections, catalog),
+                        cheek = resolveMakeupLayer(EditorCategory.CHEEK, selections, catalog),
+                        lips = resolveMakeupLayer(EditorCategory.LIPS, selections, catalog),
+                        brow = resolveMakeupLayer(EditorCategory.BROWS, selections, catalog),
                         modifier = Modifier.fillMaxSize()
                     )
                     IconButton(

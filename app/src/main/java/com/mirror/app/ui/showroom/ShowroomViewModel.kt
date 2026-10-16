@@ -13,11 +13,9 @@ import com.mirror.app.domain.model.FaceAnalysis
 import com.mirror.app.domain.model.ShadeFinish
 import com.mirror.app.domain.model.ShadeItem
 import com.mirror.app.ui.editor.EditorCategory
-import com.mirror.app.ui.editor.MakeupLayer
 import com.mirror.app.ui.editor.MakeupSelection
 import com.mirror.app.ui.editor.editorShadesByCategory
 import com.mirror.app.ui.editor.isSteepAngle
-import com.mirror.app.ui.editor.resolveMakeupLayer
 import com.mirror.app.ui.editor.toShadeCategory
 import com.mirror.app.ui.upload.UploadErrorMessage
 import com.mirror.app.ui.upload.UploadUiState
@@ -153,9 +151,6 @@ class ShowroomViewModel(
         val current = _selections.value[category] ?: MakeupSelection()
         _selections.value = _selections.value + (category to current.copy(intensity = value))
     }
-
-    fun layer(category: EditorCategory): MakeupLayer? =
-        resolveMakeupLayer(category, _selections.value, _catalog.value)
 
     fun reset() {
         resetResults()
