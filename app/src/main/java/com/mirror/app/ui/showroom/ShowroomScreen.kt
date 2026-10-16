@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -22,18 +23,22 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +59,7 @@ import com.mirror.app.ui.editor.cropToFace
 import com.mirror.app.ui.editor.resolveMakeupLayer
 import com.mirror.app.ui.upload.UploadErrorMessage
 import com.mirror.app.ui.upload.UploadUiState
+import kotlinx.coroutines.delay
 
 /**
  * A separate, self-contained screen: upload a portrait, Gemini reads the skin tone and suggests
@@ -61,7 +67,7 @@ import com.mirror.app.ui.upload.UploadUiState
  * It never touches the Studio's state or saved looks.
  */
 @Composable
-fun ShowroomScreen(viewModel: ShowroomViewModel, onBack: () -> Unit) {
+fun ShowroomScreen(viewModel: ShowroomViewModel, onBack: () -> Unit, onSaveLook: (String, ShowroomSnapshot) -> Unit) {
     val photoState by viewModel.photoState.collectAsState()
     val analysis by viewModel.analysis.collectAsState()
     val selections by viewModel.selections.collectAsState()
@@ -106,6 +112,7 @@ fun ShowroomScreen(viewModel: ShowroomViewModel, onBack: () -> Unit) {
                         cheek = resolveMakeupLayer(EditorCategory.CHEEK, selections, catalog),
                         lips = resolveMakeupLayer(EditorCategory.LIPS, selections, catalog),
                         brow = resolveMakeupLayer(EditorCategory.BROWS, selections, catalog),
+                        eyeColor = resolveMakeupLayer(EditorCategory.EYE_COLOR, selections, catalog),
                         modifier = Modifier.fillMaxSize()
                     )
                     IconButton(
@@ -225,6 +232,56 @@ fun ShowroomScreen(viewModel: ShowroomViewModel, onBack: () -> Unit) {
                             onValueChange = { viewModel.setIntensity(category, it) },
                             valueRange = 0.1f..1f,
                             enabled = selection.shadeId != null
+                        )
+                    }
+                }
+
+                item {
+                    var justSaved by remember { mutableStateOf(false) }
+                    var showSaveDialog by remember { mutableStateOf(false) }
+                    var saveName by remember { mutableStateOf("") }
+                    val hasMakeup = selections.values.any { it.shadeId != null }
+                    LaunchedEffect(justSaved) { if (justSaved) { delay(1600); justSaved = false } }
+
+                    if (showSaveDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showSaveDialog = false },
+                            title = { Text("Name this look") },
+                            text = {
+                                OutlinedTextField(
+                                    value = saveName,
+                                    onValueChange = { saveName = it },
+                                    placeholder = { Text("e.g. Bridal Glam") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    viewModel.snapshot()?.let { onSaveLook(saveName, it) }
+                                    showSaveDialog = false
+                                    saveName = ""
+                                    justSaved = true
+                                }) { Text("SAVE") }
+                            },
+                            dismissButton = { TextButton(onClick = { showSaveDialog = false }) { Text("CANCEL") } }
+                        )
+                    }
+
+                    Button(
+                        onClick = { showSaveDialog = true },
+                        enabled = hasMakeup,
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        Icon(Icons.Filled.Bookmark, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Text(
+                            when {
+                                justSaved -> "SAVED TO RECENT LOOKS"
+                                hasMakeup -> "SAVE LOOK"
+                                else -> "PICK A SHADE TO SAVE"
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(start = 8.dp)
                         )
                     }
                 }

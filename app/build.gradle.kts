@@ -24,8 +24,8 @@ android {
         applicationId = "com.mirror.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.2.1"
+        versionCode = 4
+        versionName = "0.2.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // MediaPipe ships native (.so) libraries; only package the ABIs we can test on

@@ -268,6 +268,63 @@ class UploadViewModel(
         }
     }
 
+    /** Saves a look made outside the Studio (Showroom) into Recent Looks, in the same [SavedLook]
+     *  form the Studio produces, so tapping it reopens it for editing. Showroom's shades (its AI
+     *  picks, or bundled ids the live Studio catalog may not contain) are registered as local custom
+     *  shades first, so the saved look can still resolve every shade it uses. */
+    fun saveExternalLook(
+        name: String,
+        photo: Bitmap,
+        landmarks: FaceLandmarkResult,
+        selections: Map<EditorCategory, MakeupSelection>,
+        sourceCatalog: Map<EditorCategory, List<ShadeItem>>
+    ) {
+        val remapped = selections.mapNotNull { (category, selection) ->
+            val shadeId = selection.shadeId ?: return@mapNotNull null
+            val shade = sourceCatalog[category]?.firstOrNull { it.id == shadeId } ?: return@mapNotNull null
+            category to selection.copy(shadeId = ensureStudioShade(category, shade))
+        }.toMap()
+        if (remapped.isEmpty()) return
+        // Read the maps directly: shadeCatalog is a stateIn() of these and may not have caught up yet.
+        val catalog = EditorCategory.entries.associateWith { _baseCatalog.value[it].orEmpty() + _customShades.value[it].orEmpty() }
+        viewModelScope.launch(Dispatchers.Default) {
+            val faceCrop = cropToFace(photo, landmarks)
+            val thumbnail = renderMakeupBitmap(
+                photo = faceCrop.bitmap,
+                landmarks = faceCrop.landmarks,
+                foundation = resolveMakeupLayer(EditorCategory.FOUNDATION, remapped, catalog),
+                cheek = resolveMakeupLayer(EditorCategory.CHEEK, remapped, catalog),
+                lips = resolveMakeupLayer(EditorCategory.LIPS, remapped, catalog),
+                brow = resolveMakeupLayer(EditorCategory.BROWS, remapped, catalog),
+                eyeColor = resolveMakeupLayer(EditorCategory.EYE_COLOR, remapped, catalog)
+            )
+            val trimmedName = name.trim()
+            val look = SavedLook(
+                id = UUID.randomUUID().toString(),
+                name = trimmedName.ifEmpty { "Look ${_savedLooks.value.size + 1}" },
+                createdAtEpochMillis = System.currentTimeMillis(),
+                thumbnail = thumbnail,
+                sourcePhoto = photo,
+                landmarks = landmarks,
+                selections = remapped,
+                lashStyle = null
+            )
+            _savedLooks.value = listOf(look) + _savedLooks.value
+        }
+    }
+
+    /** The id of a Studio-catalog shade matching [shade] (same name and color), creating a local
+     *  custom shade for it if there isn't one. */
+    private fun ensureStudioShade(category: EditorCategory, shade: ShadeItem): String {
+        val existing = (_baseCatalog.value[category].orEmpty() + _customShades.value[category].orEmpty())
+            .firstOrNull { it.name == shade.name && it.hexColor.equals(shade.hexColor, ignoreCase = true) }
+        if (existing != null) return existing.id
+        val custom = shade.copy(id = "custom-${UUID.randomUUID()}", category = category.toShadeCategory())
+        customShadeStore?.add(category, custom)
+        _customShades.value = _customShades.value + (category to (_customShades.value[category].orEmpty() + custom))
+        return custom.id
+    }
+
     /** Reopens a previously saved look in the editor - restores the source photo, landmarks,
      *  and every category's selection exactly as they were when it was saved, so tapping a
      *  Recent Look from Dashboard resumes editing instead of just showing a static picture. */

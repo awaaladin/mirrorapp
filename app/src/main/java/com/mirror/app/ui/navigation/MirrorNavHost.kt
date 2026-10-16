@@ -164,7 +164,13 @@ fun MirrorNavHost(uploadViewModel: UploadViewModel, authViewModel: AuthViewModel
                 )
             }
             composable(MirrorRoutes.SHOWROOM) {
-                ShowroomScreen(viewModel = showroomViewModel, onBack = { navController.popBackStack() })
+                ShowroomScreen(
+                    viewModel = showroomViewModel,
+                    onBack = { navController.popBackStack() },
+                    onSaveLook = { name, look ->
+                        uploadViewModel.saveExternalLook(name, look.photo, look.landmarks, look.selections, look.catalog)
+                    }
+                )
             }
             composable(MirrorRoutes.LIBRARY) {
                 LibraryScreen(viewModel = uploadViewModel)

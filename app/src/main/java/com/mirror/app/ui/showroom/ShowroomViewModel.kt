@@ -10,6 +10,7 @@ import com.mirror.app.core.result.AppResult
 import com.mirror.app.data.landmark.FaceLandmarkerHelper
 import com.mirror.app.data.showroom.ShowroomRepository
 import com.mirror.app.domain.model.FaceAnalysis
+import com.mirror.app.domain.model.FaceLandmarkResult
 import com.mirror.app.domain.model.ShadeFinish
 import com.mirror.app.domain.model.ShadeItem
 import com.mirror.app.ui.editor.EditorCategory
@@ -28,6 +29,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 
+/** Everything needed to save what is currently on screen as a look. */
+class ShowroomSnapshot(
+    val photo: Bitmap,
+    val landmarks: FaceLandmarkResult,
+    val selections: Map<EditorCategory, MakeupSelection>,
+    val catalog: Map<EditorCategory, List<ShadeItem>>
+)
+
 sealed interface AnalysisState {
     data object Idle : AnalysisState
     data object Loading : AnalysisState
@@ -35,9 +44,10 @@ sealed interface AnalysisState {
     data class Failed(val message: String) : AnalysisState
 }
 
-/** The four categories Showroom offers - a small subset of the Studio's. */
+/** The categories Showroom offers - a small subset of the Studio's. */
 val showroomCategories = listOf(
-    EditorCategory.FOUNDATION, EditorCategory.LIPS, EditorCategory.CHEEK, EditorCategory.BROWS
+    EditorCategory.FOUNDATION, EditorCategory.LIPS, EditorCategory.CHEEK, EditorCategory.BROWS,
+    EditorCategory.EYE_COLOR
 )
 
 /** Maps the backend's suggestion category names to Studio categories. */
@@ -150,6 +160,14 @@ class ShowroomViewModel(
     fun setIntensity(category: EditorCategory, value: Float) {
         val current = _selections.value[category] ?: MakeupSelection()
         _selections.value = _selections.value + (category to current.copy(intensity = value))
+    }
+
+    /** The photo plus the shades currently applied, or null if there is no photo or nothing applied. */
+    fun snapshot(): ShowroomSnapshot? {
+        val state = _photoState.value as? UploadUiState.Detected ?: return null
+        val applied = _selections.value.filterValues { it.shadeId != null }
+        if (applied.isEmpty()) return null
+        return ShowroomSnapshot(state.photo, state.landmarks, applied, _catalog.value)
     }
 
     fun reset() {
