@@ -258,8 +258,8 @@ fun FaceCanvas(
     // Foundation/blush/brows/lips come from the feathered compositor (see MakeupCompositor); the
     // composed bitmap is recomputed off the main thread whenever a layer changes, and the
     // un-made-up photo shows meanwhile. Everything else still draws live on top below.
-    val composed by produceState(initialValue = photo, photo, landmarks, foundation, cheek, lips, brow) {
-        value = withContext(Dispatchers.Default) { composeMakeup(photo, landmarks, foundation, cheek, lips, brow) }
+    val composed by produceState(initialValue = photo, photo, landmarks, foundation, cheek, lips, brow, eyeColor) {
+        value = withContext(Dispatchers.Default) { composeMakeup(photo, landmarks, foundation, cheek, lips, brow, eyeColor) }
     }
     val imageBitmap = remember(composed) { composed.asImageBitmap() }
 
@@ -289,7 +289,7 @@ fun FaceCanvas(
             brow = null,
             eyeshadow = eyeshadow,
             eyeliner = eyeliner,
-            eyeColor = eyeColor,
+            eyeColor = null,
             lashStyle = lashStyle,
             cheek = null,
             lips = null
@@ -684,7 +684,7 @@ fun renderMakeupBitmap(
     brow: MakeupLayer? = null,
     gele: MakeupLayer? = null
 ): Bitmap {
-    val base = composeMakeup(photo, landmarks, foundation, cheek, lips, brow)
+    val base = composeMakeup(photo, landmarks, foundation, cheek, lips, brow, eyeColor)
     val output = Bitmap.createBitmap(base.width, base.height, Bitmap.Config.ARGB_8888)
     val androidCanvas = android.graphics.Canvas(output)
     val composeCanvas = androidx.compose.ui.graphics.Canvas(androidCanvas)
@@ -709,7 +709,7 @@ fun renderMakeupBitmap(
             brow = null,
             eyeshadow = eyeshadow,
             eyeliner = eyeliner,
-            eyeColor = eyeColor,
+            eyeColor = null,
             lashStyle = lashStyle,
             cheek = null,
             lips = null

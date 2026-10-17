@@ -60,7 +60,8 @@ class MakeupCompositorTest {
                 foundation = warm,
                 cheek = CompositorLayer(0xFFC1552E.toInt(), 0.5f),
                 brow = CompositorLayer(0xFF3B2418.toInt(), 0.5f),
-                lips = CompositorLayer(0xFF7B3B2E.toInt(), 0.5f, ShadeFinish.GLOSSY)
+                lips = CompositorLayer(0xFF7B3B2E.toInt(), 0.5f, ShadeFinish.GLOSSY),
+                eyeColor = CompositorLayer(0xFF2E7D5B.toInt(), 0.8f)
             )
             assertTrue("$name: makeup changed nothing", !px.contentEquals(out))
             // Corners are far outside the face: they must be untouched (no bleed onto background).

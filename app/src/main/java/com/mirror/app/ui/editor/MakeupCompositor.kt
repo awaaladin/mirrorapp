@@ -39,6 +39,12 @@ object MakeupCompositor {
     private val RIGHT_BROW = intArrayOf(46, 53, 52, 65, 55, 107, 66, 105, 63, 70)
     private val LEFT_BROW = intArrayOf(276, 283, 282, 295, 285, 336, 296, 334, 293, 300)
 
+    // Iris center + the four points on its rim (present only with iris refinement: 478 points).
+    private val IRIS = listOf(
+        Triple(RIGHT_EYE, 468, intArrayOf(469, 470, 471, 472)),
+        Triple(LEFT_EYE, 473, intArrayOf(474, 475, 476, 477))
+    )
+
     // Cheek apple + temple on each side: their vector gives the cheekbone angle for blush.
     private val BLUSH_SIDES = listOf(50 to 234, 280 to 454)
 
@@ -52,10 +58,13 @@ object MakeupCompositor {
         foundation: CompositorLayer? = null,
         cheek: CompositorLayer? = null,
         brow: CompositorLayer? = null,
-        lips: CompositorLayer? = null
+        lips: CompositorLayer? = null,
+        eyeColor: CompositorLayer? = null
     ): IntArray {
         val out = pixels.copyOf()
-        if (points.size < 2 * 468 || (foundation == null && cheek == null && brow == null && lips == null)) return out
+        if (points.size < 2 * 468 ||
+            (foundation == null && cheek == null && brow == null && lips == null && eyeColor == null)
+        ) return out
 
         val ctx = Ctx(width, height, points)
         val ovalSoft by lazy { ctx.faceMask(shrink = true) }
@@ -64,6 +73,7 @@ object MakeupCompositor {
         if (cheek != null) applyBlush(out, ctx, cheek, ovalSoft)
         if (brow != null) applyBrows(out, ctx, brow)
         if (lips != null) applyLips(out, ctx, lips)
+        if (eyeColor != null && points.size >= 2 * 478) applyEyeColor(out, ctx, eyeColor)
         return out
     }
 
@@ -202,6 +212,40 @@ object MakeupCompositor {
         }
     }
 
+    /** Recolors the iris. The tint covers only the iris disc (radius measured from the rim landmarks)
+     *  and only where it is inside the open eye, so it never spills onto the eyelid or skin, and it
+     *  takes the shade's hue at each pixel's own brightness - the dark pupil stays dark and the
+     *  bright catchlight stays bright, so the eye looks recolored rather than painted. */
+    private fun applyEyeColor(px: IntArray, ctx: Ctx, layer: CompositorLayer) {
+        val w = ctx.w; val h = ctx.h
+        val mask = FloatArray(w * h)
+        for ((eye, center, rim) in IRIS) {
+            val cx = ctx.x(center); val cy = ctx.y(center)
+            var radius = 0f
+            for (i in rim) radius += kotlin.math.hypot(ctx.x(i) - cx, ctx.y(i) - cy)
+            radius /= rim.size
+            if (radius < 1f) continue
+            val disc = FloatArray(w * h)
+            fillEllipse(disc, w, h, cx, cy, radius * 1.05f, radius * 1.05f, 0f)
+            val opening = FloatArray(w * h)
+            ctx.polygon(eye, opening, 1f, 0.97f, 0.97f)
+            for (i in mask.indices) if (disc[i] > 0f && opening[i] > 0f) mask[i] = 1f
+        }
+        boxBlur(mask, w, h, 1)
+
+        val tr = ((layer.argb shr 16) and 0xFF).toFloat(); val tg = ((layer.argb shr 8) and 0xFF).toFloat(); val tb = (layer.argb and 0xFF).toFloat()
+        val shadeLum = max(20f, 0.299f * tr + 0.587f * tg + 0.114f * tb)
+        val strength = 0.45f + 0.5f * layer.intensity.coerceIn(0f, 1f)
+        for (i in px.indices) {
+            val a = mask[i] * strength
+            if (a <= 0.002f) continue
+            val p = px[i]
+            val r = ((p shr 16) and 0xFF).toFloat(); val g = ((p shr 8) and 0xFF).toFloat(); val b = (p and 0xFF).toFloat()
+            val k = (0.299f * r + 0.587f * g + 0.114f * b) / shadeLum
+            px[i] = mix(p, (tr * k).coerceAtMost(255f), (tg * k).coerceAtMost(255f), (tb * k).coerceAtMost(255f), a)
+        }
+    }
+
     /** out = px * (1-k*m) + (px * color/255) * (k*m): a multiply tint that keeps the photo's detail. */
     private fun multiplyTint(px: IntArray, mask: FloatArray, argb: Int, k: Float, clip: FloatArray?) {
         val cr = ((argb shr 16) and 0xFF) / 255f; val cg = ((argb shr 8) and 0xFF) / 255f; val cb = (argb and 0xFF) / 255f
@@ -308,9 +352,10 @@ fun composeMakeup(
     foundation: MakeupLayer?,
     cheek: MakeupLayer?,
     lips: MakeupLayer?,
-    brow: MakeupLayer?
+    brow: MakeupLayer?,
+    eyeColor: MakeupLayer? = null
 ): android.graphics.Bitmap {
-    if (foundation == null && cheek == null && lips == null && brow == null) return photo
+    if (foundation == null && cheek == null && lips == null && brow == null && eyeColor == null) return photo
     val scale = minOf(1f, COMPOSE_MAX_SIDE.toFloat() / maxOf(photo.width, photo.height))
     val work = if (scale < 1f) {
         android.graphics.Bitmap.createScaledBitmap(photo, (photo.width * scale).toInt().coerceAtLeast(1), (photo.height * scale).toInt().coerceAtLeast(1), true)
@@ -322,7 +367,7 @@ fun composeMakeup(
     landmarks.points.forEachIndexed { i, p -> pts[2 * i] = p.x; pts[2 * i + 1] = p.y }
 
     fun layer(l: MakeupLayer?) = l?.let { CompositorLayer(it.color.toArgb(), it.intensity, it.finish) }
-    val result = MakeupCompositor.compose(pixels, w, h, pts, layer(foundation), layer(cheek), layer(brow), layer(lips))
+    val result = MakeupCompositor.compose(pixels, w, h, pts, layer(foundation), layer(cheek), layer(brow), layer(lips), layer(eyeColor))
 
     val out = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
     out.setPixels(result, 0, w, 0, 0, w, h)

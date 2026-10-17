@@ -412,7 +412,7 @@ fun EditorScreen(
                         ) {
                             Icon(Icons.Filled.Bookmark, contentDescription = null, modifier = Modifier.size(16.dp))
                             Text(
-                                if (justSaved) "SAVED FOR THIS SESSION" else "SAVE FORMULATION",
+                                if (justSaved) "SAVED" else "SAVE FORMULATION",
                                 style = MaterialTheme.typography.labelMedium,
                                 modifier = Modifier.padding(start = 8.dp)
                             )

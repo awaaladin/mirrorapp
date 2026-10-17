@@ -23,6 +23,7 @@ import com.mirror.app.data.auth.BackendAuthRepository
 import com.mirror.app.data.auth.SessionStore
 import com.mirror.app.data.clients.ClientRepository
 import com.mirror.app.data.landmark.FaceLandmarkerHelper
+import com.mirror.app.data.looks.LookStore
 import com.mirror.app.data.network.NetworkConfig
 import com.mirror.app.data.network.createMirrorBackendApi
 import com.mirror.app.data.notifications.registerDeviceToken
@@ -53,7 +54,8 @@ class MainActivity : ComponentActivity() {
                 return UploadViewModel(
                     FaceLandmarkerHelper(applicationContext),
                     ShadeRepository(localApi, deployedApi),
-                    CustomShadeStore(applicationContext)
+                    CustomShadeStore(applicationContext),
+                    lookStore = LookStore(applicationContext)
                 ) as T
             }
         }

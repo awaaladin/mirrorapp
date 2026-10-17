@@ -3,12 +3,16 @@ package com.mirror.app.ui.upload
 import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mirror.app.core.result.AppError
 import com.mirror.app.core.result.AppResult
 import com.mirror.app.data.landmark.FaceLandmarkerHelper
+import com.mirror.app.data.looks.LoadedLook
+import com.mirror.app.data.looks.LookStore
 import com.mirror.app.data.shades.CustomShadeStore
 import com.mirror.app.data.shades.ShadeRepository
 import com.mirror.app.domain.model.FaceLandmarkResult
@@ -55,21 +59,65 @@ data class SavedLook(
 internal suspend fun decodeBitmapFromUri(uri: Uri, contentResolver: ContentResolver): Bitmap? =
     withContext(Dispatchers.IO) {
         try {
-            contentResolver.openInputStream(uri)?.use { stream ->
-                BitmapFactory.decodeStream(stream)
+            // Bounds first, so a 12MP camera photo is sampled down while decoding instead of
+            // being fully expanded (slow, and a real out-of-memory risk on budget phones).
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@withContext null
+            var sample = 1
+            while (maxOf(bounds.outWidth, bounds.outHeight) / sample > MAX_DECODE_SIDE) sample *= 2
+
+            val decoded = contentResolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, BitmapFactory.Options().apply { inSampleSize = sample })
+            } ?: return@withContext null
+
+            // Phone cameras store portraits sideways plus a rotation flag that BitmapFactory
+            // ignores. Without applying it the photo loads rotated and landmarks/makeup land wrong
+            // (or no face is found at all).
+            val orientation = try {
+                contentResolver.openInputStream(uri)?.use {
+                    ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+                } ?: ExifInterface.ORIENTATION_NORMAL
+            } catch (e: IOException) {
+                ExifInterface.ORIENTATION_NORMAL
             }
+            applyExifOrientation(decoded, orientation)
         } catch (e: IOException) {
             null
         } catch (e: SecurityException) {
             null
+        } catch (e: OutOfMemoryError) {
+            null
         }
     }
+
+private const val MAX_DECODE_SIDE = 2048
+
+/** Returns [bitmap] rotated/flipped upright for an EXIF orientation value (recycling the original
+ *  when a new bitmap is made). Orientation 1 / unknown values return [bitmap] untouched. */
+internal fun applyExifOrientation(bitmap: Bitmap, orientation: Int): Bitmap {
+    val matrix = Matrix()
+    when (orientation) {
+        ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.postScale(-1f, 1f)
+        ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+        ExifInterface.ORIENTATION_FLIP_VERTICAL -> { matrix.postRotate(180f); matrix.postScale(-1f, 1f) }
+        ExifInterface.ORIENTATION_TRANSPOSE -> { matrix.postRotate(90f); matrix.postScale(-1f, 1f) }
+        ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+        ExifInterface.ORIENTATION_TRANSVERSE -> { matrix.postRotate(-90f); matrix.postScale(-1f, 1f) }
+        ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(-90f)
+        else -> return bitmap
+    }
+    val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    if (rotated !== bitmap) bitmap.recycle()
+    return rotated
+}
 
 class UploadViewModel(
     private val faceLandmarkerHelper: FaceLandmarkerHelper,
     private val shadeRepository: ShadeRepository? = null,
     private val customShadeStore: CustomShadeStore? = null,
-    private val decodeBitmap: suspend (Uri, ContentResolver) -> Bitmap? = ::decodeBitmapFromUri
+    private val decodeBitmap: suspend (Uri, ContentResolver) -> Bitmap? = ::decodeBitmapFromUri,
+    private val lookStore: LookStore? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UploadUiState>(UploadUiState.Idle)
@@ -100,6 +148,43 @@ class UploadViewModel(
 
     private val _savedLooks = MutableStateFlow<List<SavedLook>>(emptyList())
     val savedLooks: StateFlow<List<SavedLook>> = _savedLooks.asStateFlow()
+
+    init {
+        // Bring back looks saved in earlier sessions. Read off the main thread: it decodes images.
+        lookStore?.let { store ->
+            viewModelScope.launch {
+                val loaded = withContext(Dispatchers.IO) { store.loadAll() }
+                restoreLooks(loaded)
+            }
+        }
+    }
+
+    /** Adds looks read from disk, first making sure every shade they use still exists in the catalog
+     *  (a bundled or backend shade id can disappear between sessions) by re-registering the stored
+     *  copy as a local custom shade under the same id. */
+    private fun restoreLooks(loaded: List<LoadedLook>) {
+        for (item in loaded) {
+            for ((category, shade) in item.shades) {
+                val known = _baseCatalog.value[category].orEmpty() + _customShades.value[category].orEmpty()
+                if (known.none { it.id == shade.id }) {
+                    customShadeStore?.add(category, shade)
+                    _customShades.value = _customShades.value + (category to (_customShades.value[category].orEmpty() + shade))
+                }
+            }
+        }
+        _savedLooks.value = (_savedLooks.value + loaded.map { it.look })
+            .distinctBy { it.id }
+            .sortedByDescending { it.createdAtEpochMillis }
+    }
+
+    /** The shades [selections] point at, from [catalog], to be stored alongside a saved look. */
+    private fun shadesUsed(
+        selections: Map<EditorCategory, MakeupSelection>,
+        catalog: Map<EditorCategory, List<ShadeItem>>
+    ): Map<EditorCategory, ShadeItem> = selections.mapNotNull { (category, selection) ->
+        val shade = catalog[category]?.firstOrNull { it.id == selection.shadeId } ?: return@mapNotNull null
+        category to shade
+    }.toMap()
 
     // Lashes isn't a color pick like the other categories (mascara is always near-black
     // regardless of "shade"), so it gets its own style-based state rather than a MakeupSelection.
@@ -265,6 +350,7 @@ class UploadViewModel(
                 lashStyle = currentLashStyle
             )
             _savedLooks.value = listOf(look) + _savedLooks.value
+            lookStore?.save(look, shadesUsed(currentSelections, currentCatalog))
         }
     }
 
@@ -310,6 +396,7 @@ class UploadViewModel(
                 lashStyle = null
             )
             _savedLooks.value = listOf(look) + _savedLooks.value
+            lookStore?.save(look, shadesUsed(remapped, catalog))
         }
     }
 
@@ -342,6 +429,7 @@ class UploadViewModel(
      *  clean up, since SavedLook only ever lived in this in-memory list. */
     fun deleteLook(id: String) {
         _savedLooks.value = _savedLooks.value.filterNot { it.id == id }
+        lookStore?.let { store -> viewModelScope.launch(Dispatchers.IO) { store.delete(id) } }
     }
 
     override fun onCleared() {
