@@ -10,6 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.mirror.app.BuildConfig
 import com.mirror.app.ui.navigation.BottomNavDestination
 import com.mirror.app.ui.theme.MirrorColorTokens
 
@@ -22,7 +23,10 @@ fun MirrorBottomNav(
         containerColor = MaterialTheme.colorScheme.inverseSurface,
         modifier = Modifier.height(80.dp)
     ) {
-        BottomNavDestination.entries.forEach { destination ->
+        // Free build has no Client Mode, so there's nowhere for that tab to lead.
+        BottomNavDestination.entries
+            .filter { !BuildConfig.IS_FREE_BUILD || it != BottomNavDestination.CLIENTS }
+            .forEach { destination ->
             val selected = currentRoute == destination.route
             NavigationBarItem(
                 selected = selected,

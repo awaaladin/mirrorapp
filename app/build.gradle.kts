@@ -35,6 +35,28 @@ android {
         }
     }
 
+    // Two distribution variants on one codebase (same backend account, same Firebase project):
+    // "full" is the app as already published/installed, everything unlocked by account/
+    // subscription as before. "free" is the beta build with Save Formulation and Client Mode
+    // cut entirely - not locked-and-teased, just not present - see BuildConfig.IS_FREE_BUILD
+    // call sites in ui/editor/EditorScreen.kt, ui/dashboard/DashboardScreen.kt and
+    // ui/components/MirrorBottomNav.kt. Both share the applicationId com.mirror.app (the one
+    // already registered in google-services.json) rather than giving "free" its own suffixed
+    // id, so there's no separate Firebase app to register right now - the trade-off is the two
+    // variants can't be installed side by side on the same device, only one at a time.
+    flavorDimensions += "tier"
+    productFlavors {
+        create("full") {
+            dimension = "tier"
+            buildConfigField("boolean", "IS_FREE_BUILD", "false")
+        }
+        create("free") {
+            dimension = "tier"
+            versionNameSuffix = "-free"
+            buildConfigField("boolean", "IS_FREE_BUILD", "true")
+        }
+    }
+
     signingConfigs {
         create("release") {
             val storeFilePath = localProperties.getProperty("MIRROR_RELEASE_STORE_FILE")

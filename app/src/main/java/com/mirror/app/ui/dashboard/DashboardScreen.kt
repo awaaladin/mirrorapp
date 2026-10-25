@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.mirror.app.BuildConfig
 import com.mirror.app.domain.model.AccountType
 import com.mirror.app.ui.theme.MirrorColorTokens
 import com.mirror.app.ui.upload.SavedLook
@@ -124,7 +125,8 @@ fun DashboardScreen(
                 }
                 // A full-width row of its own - rather than squeezed beside the headline -
                 // so the labels never get forced into a column of single wrapped characters.
-                Row(
+                // Free build has no Client Mode at all, so there's nothing to switch between.
+                if (!BuildConfig.IS_FREE_BUILD) Row(
                     modifier = Modifier
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.small)
                         .padding(4.dp)
@@ -289,7 +291,8 @@ fun DashboardScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        item {
+        // Free build has no Client Mode at all - not locked-and-teased, just not here.
+        if (!BuildConfig.IS_FREE_BUILD) item {
             ArchiveRow(
                 icon = Icons.Filled.FolderShared,
                 iconBg = MirrorColorTokens.SecondaryFixed,
