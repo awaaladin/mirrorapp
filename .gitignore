@@ -27,3 +27,4 @@ apk-output/
 
 # Keep the MediaPipe model committed - it's a required runtime asset, not a build artifact.
 !app/src/main/assets/face_landmarker.task
+app/google-services.real.json
