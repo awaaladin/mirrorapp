@@ -1,5 +1,7 @@
 package com.mirror.app.ui.dashboard
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -47,8 +49,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.mirror.app.BuildConfig
+import com.mirror.app.data.network.NetworkConfig
 import com.mirror.app.domain.model.AccountType
 import com.mirror.app.ui.theme.MirrorColorTokens
 import com.mirror.app.ui.upload.SavedLook
@@ -81,6 +85,7 @@ fun DashboardScreen(
         )
     }
     val isPro = accountType == AccountType.BUSINESS
+    val context = LocalContext.current
     val filteredLooks = if (lookSearchQuery.isBlank()) {
         savedLooks
     } else {
@@ -88,15 +93,33 @@ fun DashboardScreen(
     }
 
     upsellReason?.let { reason ->
-        val (title, body) = when (reason) {
-            UpsellReason.CLIENT_MODE -> "Client Mode is a Pro feature" to
-                "Upgrade to a Pro/MUA account to manage client profiles and run bridal & editorial consultations. You created a Personal account - you can upgrade any time from Settings."
-            UpsellReason.LIVE_SIMULATION -> "Live Simulation is a Pro feature" to
-                "Real-time camera simulation is a Pro capability that's coming in a later release. For now, IMPORT lets you upload a portrait and formulate a look in the Studio - that part works today, on any account."
+        // Client Mode: payment actually unlocks it, so the dialog's confirm button sends you
+        // to pay. Live Simulation isn't built yet regardless of payment, so it's dismiss-only.
+        val (title, body, confirmLabel) = when (reason) {
+            UpsellReason.CLIENT_MODE -> Triple(
+                "Client Mode is a Pro feature",
+                "Upgrade to a Pro/MUA account to manage client profiles and run bridal & editorial consultations. Payment happens on mirror's website - pay with the same email you sign in with here and it applies to this account right away.",
+                "UPGRADE"
+            )
+            UpsellReason.LIVE_SIMULATION -> Triple(
+                "Live Simulation is a Pro feature",
+                "Real-time camera simulation is a Pro capability that's coming in a later release. For now, IMPORT lets you upload a portrait and formulate a look in the Studio - that part works today, on any account.",
+                "GOT IT"
+            )
         }
         AlertDialog(
             onDismissRequest = { upsellReason = null },
-            confirmButton = { TextButton(onClick = { upsellReason = null }) { Text("GOT IT") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (reason == UpsellReason.CLIENT_MODE) {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(NetworkConfig.PRICING_URL)))
+                    }
+                    upsellReason = null
+                }) { Text(confirmLabel) }
+            },
+            dismissButton = if (reason == UpsellReason.CLIENT_MODE) {
+                { TextButton(onClick = { upsellReason = null }) { Text("NOT NOW") } }
+            } else null,
             title = { Text(title) },
             text = { Text(body) }
         )
