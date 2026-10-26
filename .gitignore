@@ -18,5 +18,12 @@ backend/.kotlin/
 *.log
 .claude/
 
+# Release signing material - only ever lives in GitHub secrets, never in the repo.
+*.jks
+*.keystore
+
+# Where `gh run download` lands CI-built APKs locally.
+apk-output/
+
 # Keep the MediaPipe model committed - it's a required runtime asset, not a build artifact.
 !app/src/main/assets/face_landmarker.task
