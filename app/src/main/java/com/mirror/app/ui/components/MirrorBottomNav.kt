@@ -23,7 +23,7 @@ fun MirrorBottomNav(
         containerColor = MaterialTheme.colorScheme.inverseSurface,
         modifier = Modifier.height(80.dp)
     ) {
-        // Client Mode is Pro Studio only; everyone else reaches its upsell from the dashboard.
+        // Client Mode is Pro only; everyone else reaches its upsell from the dashboard.
         BottomNavDestination.entries
             .filter { showClients || it != BottomNavDestination.CLIENTS }
             .forEach { destination ->

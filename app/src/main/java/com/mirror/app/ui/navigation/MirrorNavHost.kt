@@ -181,7 +181,7 @@ fun MirrorNavHost(uploadViewModel: UploadViewModel, authViewModel: AuthViewModel
                 SettingsScreen(authViewModel = authViewModel)
             }
             composable(MirrorRoutes.BEFORE_AFTER) {
-                BeforeAfterScreen(viewModel = uploadViewModel, onBack = { navController.popBackStack() })
+                BeforeAfterScreen(viewModel = uploadViewModel, proPlan = proPlan, onBack = { navController.popBackStack() })
             }
         }
     }

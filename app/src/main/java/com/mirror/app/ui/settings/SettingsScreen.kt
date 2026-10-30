@@ -68,8 +68,8 @@ fun SettingsScreen(authViewModel: AuthViewModel) {
             Text(
                 when (proPlan) {
                     ProPlan.FREE -> "FREE ACCOUNT"
-                    ProPlan.SOLO -> "MIRROR PRO SOLO"
-                    ProPlan.STUDIO -> "MIRROR PRO STUDIO"
+                    ProPlan.SOLO -> "UNLOCKED FOREVER"
+                    ProPlan.STUDIO -> "MIRROR PRO"
                 },
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
@@ -79,8 +79,8 @@ fun SettingsScreen(authViewModel: AuthViewModel) {
 
         Text(
             when (proPlan) {
-                ProPlan.FREE -> "Mirror is free. Mirror Pro, coming soon, adds Showroom AI skin analysis and Client Mode for bridal & editorial consultations."
-                ProPlan.SOLO -> "Your plan includes Showroom AI skin analysis."
+                ProPlan.FREE -> "Mirror is free. Looks you share carry a small watermark - one ₦7,500 payment removes it forever. Pay on mirror's website with the same email you use to sign in here."
+                ProPlan.SOLO -> "Your one-time payment is on this account. Shared looks have no watermark, for good."
                 ProPlan.STUDIO -> "Your plan includes Showroom AI skin analysis and Client Mode - manage client profiles from the Clients tab."
             },
             style = MaterialTheme.typography.bodySmall,
@@ -96,7 +96,7 @@ fun SettingsScreen(authViewModel: AuthViewModel) {
                 modifier = Modifier.fillMaxWidth().height(44.dp)
             ) {
                 Icon(Icons.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                Text("SEE MIRROR PRO", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
+                Text("REMOVE WATERMARK · ₦7,500 ONCE", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
             }
             androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(12.dp))
         }

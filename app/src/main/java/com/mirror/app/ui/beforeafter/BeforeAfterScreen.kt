@@ -1,5 +1,7 @@
 package com.mirror.app.ui.beforeafter
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -20,14 +23,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,14 +42,19 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.mirror.app.data.network.NetworkConfig
+import com.mirror.app.domain.model.ProPlan
 import com.mirror.app.ui.editor.EditorCategory
 import com.mirror.app.ui.editor.cropToFace
 import com.mirror.app.ui.editor.renderMakeupBitmap
 import com.mirror.app.ui.editor.resolveMakeupLayer
+import com.mirror.app.ui.share.shareLook
 import com.mirror.app.ui.upload.UploadUiState
 import com.mirror.app.ui.upload.UploadViewModel
 import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.launch
 
 /**
  * Interactive before/after wipe comparator. "Before" is the actual detected-face crop with no
@@ -51,7 +63,9 @@ import androidx.compose.runtime.collectAsState
  * [UploadViewModel], so this is always a true diff of the live formulation, not a placeholder.
  */
 @Composable
-fun BeforeAfterScreen(viewModel: UploadViewModel, onBack: () -> Unit) {
+fun BeforeAfterScreen(viewModel: UploadViewModel, proPlan: ProPlan, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val uiState by viewModel.uiState.collectAsState()
     val selections by viewModel.selections.collectAsState()
     val shadeCatalog by viewModel.shadeCatalog.collectAsState()
@@ -174,6 +188,31 @@ fun BeforeAfterScreen(viewModel: UploadViewModel, onBack: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
                 )
+            }
+
+            item {
+                Button(
+                    onClick = { scope.launch { shareLook(context, afterBitmap, withWatermark = !proPlan.removesWatermark) } },
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) {
+                    Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Text("SHARE LOOK", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+
+            if (!proPlan.removesWatermark) {
+                item {
+                    Text(
+                        "Shared looks carry a small mirror watermark.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(onClick = {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(NetworkConfig.PRICING_URL)))
+                    }) {
+                        Text("REMOVE IT FOREVER · ONE-TIME ₦7,500", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
             }
         }
     }

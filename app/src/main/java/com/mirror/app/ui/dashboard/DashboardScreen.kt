@@ -57,7 +57,7 @@ import com.mirror.app.ui.theme.MirrorColorTokens
 import com.mirror.app.ui.upload.SavedLook
 
 private enum class StudioMode { SELF, CLIENT }
-private enum class UpsellReason { CLIENT_MODE, SHOWROOM, LIVE_SIMULATION }
+private enum class UpsellReason { CLIENT_MODE, LIVE_SIMULATION }
 
 @Composable
 fun DashboardScreen(
@@ -92,17 +92,12 @@ fun DashboardScreen(
     }
 
     upsellReason?.let { reason ->
-        // Client Mode and Showroom are paid plans, so the dialog's confirm button leads to them.
+        // Client Mode is Pro, so the dialog's confirm button leads to it.
         // Live Simulation isn't built yet regardless of payment, so it's dismiss-only.
         val (title, body, confirmLabel) = when (reason) {
             UpsellReason.CLIENT_MODE -> Triple(
-                "Client Mode is part of Mirror Pro Studio",
+                "Client Mode is part of Mirror Pro",
                 "Manage client profiles and run bridal & editorial consultations. Mirror Pro is coming soon - see what's planned on mirror's website.",
-                "SEE MIRROR PRO"
-            )
-            UpsellReason.SHOWROOM -> Triple(
-                "Showroom is part of Mirror Pro",
-                "Showroom reads your skin tone and undertone from a portrait and suggests shades for you. Mirror Pro is coming soon - see what's planned on mirror's website.",
                 "SEE MIRROR PRO"
             )
             UpsellReason.LIVE_SIMULATION -> Triple(
@@ -251,7 +246,9 @@ fun DashboardScreen(
                         )
                     }
                 }
-                OutlinedButton(onClick = { if (proPlan.hasShowroom) onOpenShowroom() else upsellReason = UpsellReason.SHOWROOM }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                // Showroom needs the internet and costs a Gemini call each time, so it's Pro only
+                // and stays out of the free, offline app entirely.
+                if (proPlan.hasShowroom) OutlinedButton(onClick = onOpenShowroom, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                     Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.inverseOnSurface, modifier = Modifier.size(18.dp))
                     Text(
                         "SHOWROOM · AI SKIN ANALYSIS",
@@ -323,7 +320,7 @@ fun DashboardScreen(
                 iconBg = MirrorColorTokens.SecondaryFixed,
                 iconTint = MirrorColorTokens.OnSecondaryFixed,
                 title = "Client Mode Directory",
-                subtitle = if (hasClientMode) "Manage saved client profiles" else "Part of Mirror Pro Studio",
+                subtitle = if (hasClientMode) "Manage saved client profiles" else "Part of Mirror Pro",
                 locked = !hasClientMode,
                 onClick = { if (hasClientMode) onOpenClients() else upsellReason = UpsellReason.CLIENT_MODE }
             )
