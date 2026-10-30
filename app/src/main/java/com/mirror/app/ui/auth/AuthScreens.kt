@@ -47,7 +47,8 @@ fun LoginScreen(viewModel: AuthViewModel, onNavigateToSignUp: () -> Unit) {
         onSubmit = { email, password -> viewModel.logIn(email, password) },
         footerPrompt = "Don't have an account?",
         footerActionLabel = "SIGN UP",
-        onFooterAction = onNavigateToSignUp
+        onFooterAction = onNavigateToSignUp,
+        forgotPasswordUrl = com.mirror.app.data.network.NetworkConfig.BASE_URL + "auth/password-reset/request-page"
     )
 }
 
@@ -61,7 +62,8 @@ fun SignUpScreen(viewModel: AuthViewModel, onNavigateToLogin: () -> Unit) {
         onSubmit = { email, password -> viewModel.signUp(email, password) },
         footerPrompt = "Already have an account?",
         footerActionLabel = "SIGN IN",
-        onFooterAction = onNavigateToLogin
+        onFooterAction = onNavigateToLogin,
+        forgotPasswordUrl = null
     )
 }
 
@@ -74,7 +76,8 @@ private fun AuthScreen(
     onSubmit: (email: String, password: String) -> Unit,
     footerPrompt: String,
     footerActionLabel: String,
-    onFooterAction: () -> Unit
+    onFooterAction: () -> Unit,
+    forgotPasswordUrl: String? = null
 ) {
     val formState by viewModel.formState.collectAsState()
     var email by remember { mutableStateOf("") }
@@ -178,6 +181,19 @@ private fun AuthScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
         ) {
+            if (forgotPasswordUrl != null) {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                TextButton(onClick = {
+                    runCatching {
+                        context.startActivity(
+                            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(forgotPasswordUrl))
+                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                }) {
+                    Text("Forgot password?", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                }
+            }
             Text(footerPrompt, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             TextButton(onClick = onFooterAction) {
                 Text(footerActionLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
