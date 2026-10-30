@@ -4,13 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mirror.app.core.result.AppError
 import com.mirror.app.core.result.AppResult
-import com.mirror.app.domain.model.AccountType
+import com.mirror.app.data.license.LicenseRepository
 import com.mirror.app.domain.model.AuthUser
+import com.mirror.app.domain.model.ProPlan
 import com.mirror.app.domain.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -27,7 +29,12 @@ sealed class AuthFormState {
     data class Error(val message: String) : AuthFormState()
 }
 
-class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
+class AuthViewModel(
+    private val authRepository: AuthRepository,
+    private val licenseRepository: LicenseRepository
+) : ViewModel() {
+
+    val proPlan: StateFlow<ProPlan> = licenseRepository.plan
 
     val sessionState: StateFlow<AuthSessionState> = authRepository.observeCurrentUser()
         .map { user -> if (user != null) AuthSessionState.SignedIn(user) else AuthSessionState.SignedOut }
@@ -36,7 +43,20 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     private val _formState = MutableStateFlow<AuthFormState>(AuthFormState.Idle)
     val formState: StateFlow<AuthFormState> = _formState.asStateFlow()
 
-    fun signUp(email: String, password: String, accountType: AccountType = AccountType.CONSUMER) {
+    init {
+        viewModelScope.launch {
+            authRepository.observeCurrentUser().collect { licenseRepository.checkIn(it) }
+        }
+    }
+
+    /** Picks up a plan bought on the website when someone comes back to the app. */
+    fun refreshPlan() {
+        viewModelScope.launch {
+            licenseRepository.checkIn(authRepository.observeCurrentUser().first())
+        }
+    }
+
+    fun signUp(email: String, password: String) {
         val validationError = validate(email, password)
         if (validationError != null) {
             _formState.value = AuthFormState.Error(validationError)
@@ -44,7 +64,7 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
         }
         _formState.value = AuthFormState.Submitting
         viewModelScope.launch {
-            when (val result = authRepository.signUp(email.trim(), password, accountType)) {
+            when (val result = authRepository.signUp(email.trim(), password)) {
                 is AppResult.Success -> _formState.value = AuthFormState.Idle
                 is AppResult.Failure -> _formState.value = AuthFormState.Error(result.error.toMessage())
             }

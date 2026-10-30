@@ -23,7 +23,6 @@ import com.mirror.app.ui.clients.ClientDirectoryScreen
 import com.mirror.app.ui.clients.ClientDirectoryViewModel
 import com.mirror.app.ui.components.MirrorBottomNav
 import com.mirror.app.ui.components.MirrorTopBar
-import com.mirror.app.domain.model.AccountType
 import com.mirror.app.ui.dashboard.DashboardScreen
 import com.mirror.app.ui.editor.EditorScreen
 import com.mirror.app.ui.library.LibraryScreen
@@ -49,6 +48,7 @@ fun MirrorNavHost(uploadViewModel: UploadViewModel, authViewModel: AuthViewModel
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val sessionState by authViewModel.sessionState.collectAsState()
+    val proPlan by authViewModel.proPlan.collectAsState()
 
     // Global guard: if the session drops (e.g. Sign Out from Settings) while the user is
     // anywhere past the auth gate, bounce back to Login rather than leaving stale account
@@ -73,7 +73,7 @@ fun MirrorNavHost(uploadViewModel: UploadViewModel, authViewModel: AuthViewModel
         },
         bottomBar = {
             if (currentRoute in routesWithBottomNav) {
-                MirrorBottomNav(currentRoute = currentRoute) { destination ->
+                MirrorBottomNav(currentRoute = currentRoute, showClients = proPlan.hasClientMode) { destination ->
                     navController.navigate(destination.route) {
                         popUpTo(MirrorRoutes.DASHBOARD) { saveState = true }
                         launchSingleTop = true
@@ -141,10 +141,9 @@ fun MirrorNavHost(uploadViewModel: UploadViewModel, authViewModel: AuthViewModel
             }
             composable(MirrorRoutes.DASHBOARD) {
                 val savedLooks by uploadViewModel.savedLooks.collectAsState()
-                val accountType = (sessionState as? AuthSessionState.SignedIn)?.user?.accountType ?: AccountType.CONSUMER
                 DashboardScreen(
                     savedLooks = savedLooks,
-                    accountType = accountType,
+                    proPlan = proPlan,
                     onStartSimulation = { navController.navigate(MirrorRoutes.EDITOR) },
                     onOpenClients = { navController.navigate(MirrorRoutes.CLIENTS) },
                     onOpenLibrary = { navController.navigate(MirrorRoutes.LIBRARY) },

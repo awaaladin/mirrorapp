@@ -17,40 +17,33 @@ import retrofit2.Response
 import java.io.IOException
 
 /**
- * Client Mode data, synced with mirrorcentral's /clients API (Pro/Business accounts only).
- * Same local-then-deployed fallback pattern as ShadeRepository/BackendAuthRepository, but every
- * call here needs a bearer token since /clients is auth-gated (unlike the public shade catalog).
+ * Client Mode data, synced with mirrorcentral's /clients API (creating and editing need Pro Studio).
+ * Every call here needs a bearer token since /clients is auth-gated (unlike the public shade
+ * catalog).
  */
-class ClientRepository(
-    private val localApi: MirrorBackendApi,
-    private val deployedApi: MirrorBackendApi
-) {
+class ClientRepository(private val api: MirrorBackendApi) {
     private val json = Json { ignoreUnknownKeys = true }
 
     suspend fun listClients(accessToken: String): AppResult<List<ClientProfile>> =
-        withFallback { api -> api.listClients(bearer(accessToken)) }.mapSuccess { dtos ->
+        request { api.listClients(bearer(accessToken)) }.mapSuccess { dtos ->
             dtos.map { it.toDomain() }
         }
 
     suspend fun createClient(accessToken: String, name: String, notes: String, tag: ClientTag): AppResult<ClientProfile> =
-        withFallback { api ->
+        request {
             api.createClient(bearer(accessToken), ClientProfileCreateDto(name, notes, tag.name.lowercase()))
         }.mapSuccess { it.toDomain() }
 
     suspend fun deleteClient(accessToken: String, clientId: String): AppResult<Unit> =
-        withFallback { api -> api.deleteClient(bearer(accessToken), clientId) }.mapSuccess { }
+        request { api.deleteClient(bearer(accessToken), clientId) }.mapSuccess { }
 
     private fun bearer(accessToken: String) = "Bearer $accessToken"
 
-    private suspend fun <T> withFallback(call: suspend (MirrorBackendApi) -> Response<T>): AppResult<T> {
+    private suspend fun <T> request(call: suspend () -> Response<T>): AppResult<T> {
         val response = try {
-            call(localApi)
+            call()
         } catch (e: IOException) {
-            try {
-                call(deployedApi)
-            } catch (e2: IOException) {
-                return AppResult.Failure(AppError.NetworkUnavailable)
-            }
+            return AppResult.Failure(AppError.NetworkUnavailable)
         }
         if (!response.isSuccessful) {
             return AppResult.Failure(AppError.RequestFailed(parseErrorMessage(response)))

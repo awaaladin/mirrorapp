@@ -51,19 +51,18 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.mirror.app.BuildConfig
 import com.mirror.app.data.network.NetworkConfig
-import com.mirror.app.domain.model.AccountType
+import com.mirror.app.domain.model.ProPlan
 import com.mirror.app.ui.theme.MirrorColorTokens
 import com.mirror.app.ui.upload.SavedLook
 
 private enum class StudioMode { SELF, CLIENT }
-private enum class UpsellReason { CLIENT_MODE, LIVE_SIMULATION }
+private enum class UpsellReason { CLIENT_MODE, SHOWROOM, LIVE_SIMULATION }
 
 @Composable
 fun DashboardScreen(
     savedLooks: List<SavedLook>,
-    accountType: AccountType,
+    proPlan: ProPlan,
     onStartSimulation: () -> Unit,
     onOpenClients: () -> Unit,
     onOpenLibrary: () -> Unit,
@@ -84,7 +83,7 @@ fun DashboardScreen(
             text = { Text("Background removal and relighting need a real on-device segmentation model, not just a color overlay - that's a bigger build than a quick fix. It's tracked as its own feature, not shipped yet.") }
         )
     }
-    val isPro = accountType == AccountType.BUSINESS
+    val hasClientMode = proPlan.hasClientMode
     val context = LocalContext.current
     val filteredLooks = if (lookSearchQuery.isBlank()) {
         savedLooks
@@ -93,13 +92,18 @@ fun DashboardScreen(
     }
 
     upsellReason?.let { reason ->
-        // Client Mode: payment actually unlocks it, so the dialog's confirm button sends you
-        // to pay. Live Simulation isn't built yet regardless of payment, so it's dismiss-only.
+        // Client Mode and Showroom are paid plans, so the dialog's confirm button leads to them.
+        // Live Simulation isn't built yet regardless of payment, so it's dismiss-only.
         val (title, body, confirmLabel) = when (reason) {
             UpsellReason.CLIENT_MODE -> Triple(
-                "Client Mode is a Pro feature",
-                "Upgrade to a Pro/MUA account to manage client profiles and run bridal & editorial consultations. Payment happens on mirror's website - pay with the same email you sign in with here and it applies to this account right away.",
-                "UPGRADE"
+                "Client Mode is part of Mirror Pro Studio",
+                "Manage client profiles and run bridal & editorial consultations. Mirror Pro is coming soon - see what's planned on mirror's website.",
+                "SEE MIRROR PRO"
+            )
+            UpsellReason.SHOWROOM -> Triple(
+                "Showroom is part of Mirror Pro",
+                "Showroom reads your skin tone and undertone from a portrait and suggests shades for you. Mirror Pro is coming soon - see what's planned on mirror's website.",
+                "SEE MIRROR PRO"
             )
             UpsellReason.LIVE_SIMULATION -> Triple(
                 "Live Simulation is a Pro feature",
@@ -111,13 +115,13 @@ fun DashboardScreen(
             onDismissRequest = { upsellReason = null },
             confirmButton = {
                 TextButton(onClick = {
-                    if (reason == UpsellReason.CLIENT_MODE) {
+                    if (reason != UpsellReason.LIVE_SIMULATION) {
                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(NetworkConfig.PRICING_URL)))
                     }
                     upsellReason = null
                 }) { Text(confirmLabel) }
             },
-            dismissButton = if (reason == UpsellReason.CLIENT_MODE) {
+            dismissButton = if (reason != UpsellReason.LIVE_SIMULATION) {
                 { TextButton(onClick = { upsellReason = null }) { Text("NOT NOW") } }
             } else null,
             title = { Text(title) },
@@ -148,8 +152,7 @@ fun DashboardScreen(
                 }
                 // A full-width row of its own - rather than squeezed beside the headline -
                 // so the labels never get forced into a column of single wrapped characters.
-                // Free build has no Client Mode at all, so there's nothing to switch between.
-                if (!BuildConfig.IS_FREE_BUILD) Row(
+                Row(
                     modifier = Modifier
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.small)
                         .padding(4.dp)
@@ -162,7 +165,7 @@ fun DashboardScreen(
                                 .clip(MaterialTheme.shapes.small)
                                 .background(if (selected) MaterialTheme.colorScheme.surface else Color.Transparent)
                                 .clickable {
-                                    if (value == StudioMode.CLIENT && !isPro) {
+                                    if (value == StudioMode.CLIENT && !hasClientMode) {
                                         upsellReason = UpsellReason.CLIENT_MODE
                                     } else {
                                         mode = value
@@ -248,7 +251,7 @@ fun DashboardScreen(
                         )
                     }
                 }
-                OutlinedButton(onClick = onOpenShowroom, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                OutlinedButton(onClick = { if (proPlan.hasShowroom) onOpenShowroom() else upsellReason = UpsellReason.SHOWROOM }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                     Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.inverseOnSurface, modifier = Modifier.size(18.dp))
                     Text(
                         "SHOWROOM · AI SKIN ANALYSIS",
@@ -314,16 +317,15 @@ fun DashboardScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        // Free build has no Client Mode at all - not locked-and-teased, just not here.
-        if (!BuildConfig.IS_FREE_BUILD) item {
+        item {
             ArchiveRow(
                 icon = Icons.Filled.FolderShared,
                 iconBg = MirrorColorTokens.SecondaryFixed,
                 iconTint = MirrorColorTokens.OnSecondaryFixed,
                 title = "Client Mode Directory",
-                subtitle = if (isPro) "Manage saved client profiles" else "Pro feature - upgrade to unlock",
-                locked = !isPro,
-                onClick = { if (isPro) onOpenClients() else upsellReason = UpsellReason.CLIENT_MODE }
+                subtitle = if (hasClientMode) "Manage saved client profiles" else "Part of Mirror Pro Studio",
+                locked = !hasClientMode,
+                onClick = { if (hasClientMode) onOpenClients() else upsellReason = UpsellReason.CLIENT_MODE }
             )
         }
         item {

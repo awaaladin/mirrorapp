@@ -9,11 +9,9 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
- * Builds a Retrofit client for [MirrorBackendApi] pointed at [baseUrl]. [timeoutSeconds] is
- * kept short for the local dev server (so an unreachable local server fails fast and the
- * caller can fall back to the deployed one quickly) and longer for the deployed one (a cold
- * serverless start can genuinely take a few seconds). Manual construction for MVP - no DI
- * framework wired up yet, matching the rest of the app's repositories.
+ * Builds a Retrofit client for [MirrorBackendApi] pointed at [baseUrl]. [timeoutSeconds] leaves
+ * room for a cold serverless start, which can genuinely take a few seconds. Manual construction
+ * for MVP - no DI framework wired up yet, matching the rest of the app's repositories.
  */
 fun createMirrorBackendApi(baseUrl: String, timeoutSeconds: Long): MirrorBackendApi {
     val logging = HttpLoggingInterceptor().apply {

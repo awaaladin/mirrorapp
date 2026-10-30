@@ -1,6 +1,5 @@
 package com.mirror.app.ui.editor
 
-import com.mirror.app.BuildConfig
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -369,8 +368,7 @@ fun EditorScreen(
                         }
                     }
 
-                    // Free build: no Save Formulation at all - not locked-and-teased, just not here.
-                    if (!BuildConfig.IS_FREE_BUILD) item {
+                    item {
                         var justSaved by remember { mutableStateOf(false) }
                         var showSaveDialog by remember { mutableStateOf(false) }
                         var saveName by remember { mutableStateOf("") }

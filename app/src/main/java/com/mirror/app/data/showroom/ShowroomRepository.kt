@@ -3,11 +3,9 @@ package com.mirror.app.data.showroom
 import com.mirror.app.core.result.AppError
 import com.mirror.app.core.result.AppResult
 import com.mirror.app.data.auth.SessionStore
+import com.mirror.app.data.auth.refreshAccessToken
 import com.mirror.app.data.network.FaceAnalysisDto
 import com.mirror.app.data.network.MirrorBackendApi
-import com.mirror.app.data.network.RefreshRequestDto
-import com.mirror.app.domain.model.AccountType
-import com.mirror.app.domain.model.AuthUser
 import com.mirror.app.domain.model.FaceAnalysis
 import com.mirror.app.domain.model.ShadeSuggestion
 import kotlinx.serialization.json.Json
@@ -21,13 +19,12 @@ import java.io.IOException
 
 /**
  * Sends a portrait to mirrorcentral's Gemini-backed /showroom/analyze and returns the analysis.
- * The Gemini key lives on the server only - the app never holds it. Same local-then-deployed
- * fallback as the other repositories; the access token is refreshed once on a 401 since the
+ * The Gemini key lives on the server only - the app never holds it. The access token is
+ * refreshed once on a 401 since the
  * 30-minute access JWT is likely to have lapsed by the time someone opens Showroom.
  */
 class ShowroomRepository(
-    private val localApi: MirrorBackendApi,
-    private val deployedApi: MirrorBackendApi,
+    private val api: MirrorBackendApi,
     private val sessionStore: SessionStore
 ) {
     private val json = Json { ignoreUnknownKeys = true }
@@ -41,7 +38,7 @@ class ShowroomRepository(
 
         var response = send(token, part) ?: return AppResult.Failure(AppError.NetworkUnavailable)
         if (response.code() == 401) {
-            token = refreshAccessToken()
+            token = refreshAccessToken(api, sessionStore)
                 ?: return AppResult.Failure(AppError.AuthFailed("Your session expired. Please sign in again."))
             response = send(token, part) ?: return AppResult.Failure(AppError.NetworkUnavailable)
         }
@@ -54,39 +51,16 @@ class ShowroomRepository(
 
     private suspend fun send(token: String, part: MultipartBody.Part): Response<FaceAnalysisDto>? =
         try {
-            localApi.analyzeFace("Bearer $token", part)
+            api.analyzeFace("Bearer $token", part)
         } catch (e: IOException) {
-            try {
-                deployedApi.analyzeFace("Bearer $token", part)
-            } catch (e2: IOException) {
-                null
-            }
+            null
         }
-
-    private suspend fun refreshAccessToken(): String? {
-        val refreshToken = sessionStore.loadRefreshToken() ?: return null
-        val request = RefreshRequestDto(refreshToken)
-        val response = try {
-            localApi.refresh(request)
-        } catch (e: IOException) {
-            try {
-                deployedApi.refresh(request)
-            } catch (e2: IOException) {
-                return null
-            }
-        }
-        val body = response.takeIf { it.isSuccessful }?.body() ?: return null
-        sessionStore.save(
-            body.accessToken,
-            body.refreshToken,
-            AuthUser(body.user.id, body.user.email, AccountType.fromWire(body.user.accountType))
-        )
-        return body.accessToken
-    }
 
     private fun parseErrorMessage(response: Response<*>): String {
         val fallback = when (response.code()) {
             413 -> "That photo is too large."
+            403 -> "Showroom is part of Mirror Pro."
+            429 -> "You've used this month's Showroom analyses."
             502, 503 -> "Showroom analysis is unavailable right now. Please try again shortly."
             else -> "Something went wrong. Please try again."
         }

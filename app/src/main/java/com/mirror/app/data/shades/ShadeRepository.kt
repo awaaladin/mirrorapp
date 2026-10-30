@@ -11,15 +11,11 @@ import java.io.IOException
 /**
  * Fetches the live shade catalog from mirrorcentral so shades aren't limited to the small
  * bundled set baked into the app - new shades added on the backend show up here without an
- * app update, and [query] lets the editor search across the whole catalog. Tries [localApi]
- * first then [deployedApi], same fallback pattern as auth; returns null (rather than throwing)
- * on total failure so callers can just keep showing whatever catalog they already had - most
- * likely the bundled offline default - instead of clearing the screen.
+ * app update, and [query] lets the editor search across the whole catalog. Returns null (rather
+ * than throwing) on failure so callers can just keep showing whatever catalog they already had -
+ * most likely the bundled offline default - instead of clearing the screen.
  */
-class ShadeRepository(
-    private val localApi: MirrorBackendApi,
-    private val deployedApi: MirrorBackendApi
-) {
+class ShadeRepository(private val api: MirrorBackendApi) {
     suspend fun fetchCatalog(query: String? = null): Map<EditorCategory, List<ShadeItem>>? {
         val dtos = fetchDtos(query) ?: return null
         val grouped = mutableMapOf<EditorCategory, MutableList<ShadeItem>>()
@@ -32,13 +28,9 @@ class ShadeRepository(
 
     private suspend fun fetchDtos(query: String?): List<ShadeDto>? {
         val response = try {
-            localApi.listShades(query = query)
+            api.listShades(query = query)
         } catch (e: IOException) {
-            try {
-                deployedApi.listShades(query = query)
-            } catch (e2: IOException) {
-                return null
-            }
+            return null
         }
         return if (response.isSuccessful) response.body() else null
     }

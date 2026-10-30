@@ -25,7 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.mirror.app.data.network.NetworkConfig
-import com.mirror.app.domain.model.AccountType
+import com.mirror.app.domain.model.ProPlan
 import com.mirror.app.ui.auth.AuthSessionState
 import com.mirror.app.ui.auth.AuthViewModel
 
@@ -34,7 +34,8 @@ fun SettingsScreen(authViewModel: AuthViewModel) {
     val sessionState by authViewModel.sessionState.collectAsState()
     val user = (sessionState as? AuthSessionState.SignedIn)?.user
     val email = user?.email
-    val isPro = user?.accountType == AccountType.BUSINESS
+    val proPlan by authViewModel.proPlan.collectAsState()
+    val isPro = proPlan != ProPlan.FREE
     val context = LocalContext.current
 
     Column(
@@ -65,7 +66,11 @@ fun SettingsScreen(authViewModel: AuthViewModel) {
                 modifier = Modifier.padding(top = 2.dp)
             )
             Text(
-                if (isPro) "PRO / MUA ACCOUNT" else "PERSONAL ACCOUNT",
+                when (proPlan) {
+                    ProPlan.FREE -> "FREE ACCOUNT"
+                    ProPlan.SOLO -> "MIRROR PRO SOLO"
+                    ProPlan.STUDIO -> "MIRROR PRO STUDIO"
+                },
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 8.dp)
@@ -73,8 +78,11 @@ fun SettingsScreen(authViewModel: AuthViewModel) {
         }
 
         Text(
-            if (isPro) "Your Pro account unlocks Client Mode - manage client profiles from the Clients tab."
-            else "Upgrading to Pro unlocks Client Mode for bridal & editorial consultations. Payment happens on mirror's website, not in the app - pay there with the same email you use to sign in here, and it applies to this account right away.",
+            when (proPlan) {
+                ProPlan.FREE -> "Mirror is free. Mirror Pro, coming soon, adds Showroom AI skin analysis and Client Mode for bridal & editorial consultations."
+                ProPlan.SOLO -> "Your plan includes Showroom AI skin analysis."
+                ProPlan.STUDIO -> "Your plan includes Showroom AI skin analysis and Client Mode - manage client profiles from the Clients tab."
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
@@ -88,7 +96,7 @@ fun SettingsScreen(authViewModel: AuthViewModel) {
                 modifier = Modifier.fillMaxWidth().height(44.dp)
             ) {
                 Icon(Icons.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                Text("UPGRADE TO PRO", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
+                Text("SEE MIRROR PRO", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
             }
             androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(12.dp))
         }

@@ -6,7 +6,6 @@ import com.mirror.app.data.network.LoginRequestDto
 import com.mirror.app.data.network.MirrorBackendApi
 import com.mirror.app.data.network.RegisterRequestDto
 import com.mirror.app.data.network.TokenResponseDto
-import com.mirror.app.domain.model.AccountType
 import com.mirror.app.domain.model.AuthUser
 import com.mirror.app.domain.repository.AuthRepository
 import kotlinx.coroutines.flow.Flow
@@ -24,14 +23,9 @@ import java.io.IOException
  * Talks to mirrorcentral (the custom Python/FastAPI backend - a sibling project, not part of
  * this Gradle build) rather than a third-party auth provider, behind the same [AuthRepository]
  * boundary so the rest of the app doesn't care which backend answers.
- *
- * Tries [localApi] first (fast local-network dev server), then [deployedApi] on any network
- * failure - so the app keeps working (any network, anywhere) even when there's no local
- * server reachable at all, which is the normal case for a real user's phone.
  */
 class BackendAuthRepository(
-    private val localApi: MirrorBackendApi,
-    private val deployedApi: MirrorBackendApi,
+    private val api: MirrorBackendApi,
     private val sessionStore: SessionStore
 ) : AuthRepository {
 
@@ -40,30 +34,22 @@ class BackendAuthRepository(
 
     override fun observeCurrentUser(): Flow<AuthUser?> = currentUser.asStateFlow()
 
-    override suspend fun signUp(email: String, password: String, accountType: AccountType): AppResult<AuthUser> =
-        withLocalThenDeployedFallback { api ->
-            api.register(RegisterRequestDto(email, password, accountType.name.lowercase()))
-        }
+    override suspend fun signUp(email: String, password: String): AppResult<AuthUser> =
+        authenticate { api.register(RegisterRequestDto(email, password)) }
 
     override suspend fun logIn(email: String, password: String): AppResult<AuthUser> =
-        withLocalThenDeployedFallback { api -> api.login(LoginRequestDto(email, password)) }
+        authenticate { api.login(LoginRequestDto(email, password)) }
 
     override fun logOut() {
         sessionStore.clear()
         currentUser.value = null
     }
 
-    private suspend fun withLocalThenDeployedFallback(
-        call: suspend (MirrorBackendApi) -> Response<TokenResponseDto>
-    ): AppResult<AuthUser> {
+    private suspend fun authenticate(call: suspend () -> Response<TokenResponseDto>): AppResult<AuthUser> {
         val response = try {
-            call(localApi)
+            call()
         } catch (e: IOException) {
-            try {
-                call(deployedApi)
-            } catch (e2: IOException) {
-                return AppResult.Failure(AppError.NetworkUnavailable)
-            }
+            return AppResult.Failure(AppError.NetworkUnavailable)
         }
         return handleResponse(response)
     }
@@ -72,11 +58,7 @@ class BackendAuthRepository(
         if (response.isSuccessful) {
             val body = response.body()
                 ?: return AppResult.Failure(AppError.AuthFailed("The server returned an empty response."))
-            val user = AuthUser(
-                uid = body.user.id,
-                email = body.user.email,
-                accountType = AccountType.fromWire(body.user.accountType)
-            )
+            val user = AuthUser(uid = body.user.id, email = body.user.email)
             sessionStore.save(body.accessToken, body.refreshToken, user)
             currentUser.value = user
             return AppResult.Success(user)

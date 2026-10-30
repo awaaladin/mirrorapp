@@ -20,8 +20,7 @@ import retrofit2.http.Query
 @Serializable
 data class RegisterRequestDto(
     val email: String,
-    val password: String,
-    @SerialName("account_type") val accountType: String = "consumer"
+    val password: String
 )
 
 @Serializable
@@ -31,7 +30,7 @@ data class LoginRequestDto(val email: String, val password: String)
 data class RefreshRequestDto(@SerialName("refresh_token") val refreshToken: String)
 
 @Serializable
-data class UserPublicDto(val id: String, val email: String, @SerialName("account_type") val accountType: String)
+data class UserPublicDto(val id: String, val email: String)
 
 @Serializable
 data class TokenResponseDto(
@@ -67,6 +66,12 @@ data class ClientProfileDto(
     val notes: String,
     val tag: String
 )
+
+@Serializable
+data class LicenseRequestDto(@SerialName("device_id") val deviceId: String)
+
+@Serializable
+data class LicenseResponseDto(val license: String? = null)
 
 @Serializable
 data class DeviceTokenRequestDto(val token: String, val platform: String)
@@ -138,6 +143,12 @@ interface MirrorBackendApi {
         @Header("Authorization") authorization: String,
         @Path("clientId") clientId: String
     ): Response<Unit>
+
+    @POST("billing/license")
+    suspend fun getLicense(
+        @Header("Authorization") authorization: String,
+        @Body request: LicenseRequestDto
+    ): Response<LicenseResponseDto>
 
     @POST("devices/register")
     suspend fun registerDeviceToken(@Body request: DeviceTokenRequestDto): Response<Unit>

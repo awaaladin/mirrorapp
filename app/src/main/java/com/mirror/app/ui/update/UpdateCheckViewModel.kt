@@ -21,10 +21,7 @@ data class AvailableUpdate(
 /** Checks mirrorcentral's /app/version once per app launch and surfaces a non-blocking (or, for
  *  a mandatory release, blocking) "update available" prompt - there's no Play Store auto-update
  *  to rely on, since the app isn't distributed through it. */
-class UpdateCheckViewModel(
-    private val localApi: MirrorBackendApi,
-    private val deployedApi: MirrorBackendApi
-) : ViewModel() {
+class UpdateCheckViewModel(private val api: MirrorBackendApi) : ViewModel() {
 
     private val _availableUpdate = MutableStateFlow<AvailableUpdate?>(null)
     val availableUpdate: StateFlow<AvailableUpdate?> = _availableUpdate.asStateFlow()
@@ -58,13 +55,9 @@ class UpdateCheckViewModel(
 
     private suspend fun fetchLatestVersion(): AppVersionDto? {
         val response = try {
-            localApi.getLatestAppVersion()
+            api.getLatestAppVersion()
         } catch (e: IOException) {
-            try {
-                deployedApi.getLatestAppVersion()
-            } catch (e2: IOException) {
-                return null
-            }
+            return null
         }
         return if (response.isSuccessful) response.body() else null
     }

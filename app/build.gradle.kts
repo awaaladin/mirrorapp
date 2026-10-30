@@ -24,36 +24,14 @@ android {
         applicationId = "com.mirror.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.3.0"
+        versionCode = 7
+        versionName = "0.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // MediaPipe ships native (.so) libraries; only package the ABIs we can test on
         // real devices/emulators for MVP to keep APK size reasonable.
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
-        }
-    }
-
-    // Two distribution variants on one codebase (same backend account, same Firebase project):
-    // "full" is the app as already published/installed, everything unlocked by account/
-    // subscription as before. "free" is the beta build with Save Formulation and Client Mode
-    // cut entirely - not locked-and-teased, just not present - see BuildConfig.IS_FREE_BUILD
-    // call sites in ui/editor/EditorScreen.kt, ui/dashboard/DashboardScreen.kt and
-    // ui/components/MirrorBottomNav.kt. Both share the applicationId com.mirror.app (the one
-    // already registered in google-services.json) rather than giving "free" its own suffixed
-    // id, so there's no separate Firebase app to register right now - the trade-off is the two
-    // variants can't be installed side by side on the same device, only one at a time.
-    flavorDimensions += "tier"
-    productFlavors {
-        create("full") {
-            dimension = "tier"
-            buildConfigField("boolean", "IS_FREE_BUILD", "false")
-        }
-        create("free") {
-            dimension = "tier"
-            versionNameSuffix = "-free"
-            buildConfigField("boolean", "IS_FREE_BUILD", "true")
         }
     }
 
@@ -71,7 +49,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

@@ -12,14 +12,10 @@ import java.io.IOException
  * Fire-and-forget: a failure here just means this device won't get push updates until the next
  * successful attempt, not a user-facing error.
  */
-suspend fun registerDeviceToken(localApi: MirrorBackendApi, deployedApi: MirrorBackendApi, token: String) {
+suspend fun registerDeviceToken(api: MirrorBackendApi, token: String) {
     try {
-        localApi.registerDeviceToken(DeviceTokenRequestDto(token, "android"))
+        api.registerDeviceToken(DeviceTokenRequestDto(token, "android"))
     } catch (e: IOException) {
-        try {
-            deployedApi.registerDeviceToken(DeviceTokenRequestDto(token, "android"))
-        } catch (e2: IOException) {
-            // Offline - nothing to do, see fire-and-forget note above.
-        }
+        // Offline - nothing to do, see fire-and-forget note above.
     }
 }

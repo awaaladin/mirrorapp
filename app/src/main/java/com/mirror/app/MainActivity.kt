@@ -23,6 +23,7 @@ import com.mirror.app.data.auth.BackendAuthRepository
 import com.mirror.app.data.auth.SessionStore
 import com.mirror.app.data.clients.ClientRepository
 import com.mirror.app.data.landmark.FaceLandmarkerHelper
+import com.mirror.app.data.license.LicenseRepository
 import com.mirror.app.data.looks.LookStore
 import com.mirror.app.data.network.NetworkConfig
 import com.mirror.app.data.network.createMirrorBackendApi
@@ -48,12 +49,11 @@ class MainActivity : ComponentActivity() {
     private val uploadViewModel: UploadViewModel by viewModels {
         object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
-                val localApi = createMirrorBackendApi(NetworkConfig.LOCAL_BASE_URL, timeoutSeconds = 3)
-                val deployedApi = createMirrorBackendApi(NetworkConfig.DEPLOYED_BASE_URL, timeoutSeconds = 20)
+                val api = createMirrorBackendApi(NetworkConfig.BASE_URL, timeoutSeconds = 20)
                 @Suppress("UNCHECKED_CAST")
                 return UploadViewModel(
                     FaceLandmarkerHelper(applicationContext),
-                    ShadeRepository(localApi, deployedApi),
+                    ShadeRepository(api),
                     CustomShadeStore(applicationContext),
                     lookStore = LookStore(applicationContext)
                 ) as T
@@ -64,12 +64,10 @@ class MainActivity : ComponentActivity() {
     private val authViewModel: AuthViewModel by viewModels {
         object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
-                // Short timeout for local (fail fast so the deployed fallback kicks in quickly
-                // when there's no local dev server); longer for deployed (cold serverless starts).
-                val localApi = createMirrorBackendApi(NetworkConfig.LOCAL_BASE_URL, timeoutSeconds = 3)
-                val deployedApi = createMirrorBackendApi(NetworkConfig.DEPLOYED_BASE_URL, timeoutSeconds = 20)
+                val api = createMirrorBackendApi(NetworkConfig.BASE_URL, timeoutSeconds = 20)
                 @Suppress("UNCHECKED_CAST")
-                return AuthViewModel(BackendAuthRepository(localApi, deployedApi, SessionStore(applicationContext))) as T
+                val sessionStore = SessionStore(applicationContext)
+                return AuthViewModel(BackendAuthRepository(api, sessionStore), LicenseRepository(api, sessionStore)) as T
             }
         }
     }
@@ -77,10 +75,9 @@ class MainActivity : ComponentActivity() {
     private val clientDirectoryViewModel: ClientDirectoryViewModel by viewModels {
         object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
-                val localApi = createMirrorBackendApi(NetworkConfig.LOCAL_BASE_URL, timeoutSeconds = 3)
-                val deployedApi = createMirrorBackendApi(NetworkConfig.DEPLOYED_BASE_URL, timeoutSeconds = 20)
+                val api = createMirrorBackendApi(NetworkConfig.BASE_URL, timeoutSeconds = 20)
                 @Suppress("UNCHECKED_CAST")
-                return ClientDirectoryViewModel(ClientRepository(localApi, deployedApi), SessionStore(applicationContext)) as T
+                return ClientDirectoryViewModel(ClientRepository(api), SessionStore(applicationContext)) as T
             }
         }
     }
@@ -90,12 +87,11 @@ class MainActivity : ComponentActivity() {
     private val showroomViewModel: ShowroomViewModel by viewModels {
         object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
-                val localApi = createMirrorBackendApi(NetworkConfig.LOCAL_BASE_URL, timeoutSeconds = 3)
-                val deployedApi = createMirrorBackendApi(NetworkConfig.DEPLOYED_BASE_URL, timeoutSeconds = 60)
+                val api = createMirrorBackendApi(NetworkConfig.BASE_URL, timeoutSeconds = 60)
                 @Suppress("UNCHECKED_CAST")
                 return ShowroomViewModel(
                     FaceLandmarkerHelper(applicationContext),
-                    ShowroomRepository(localApi, deployedApi, SessionStore(applicationContext))
+                    ShowroomRepository(api, SessionStore(applicationContext))
                 ) as T
             }
         }
@@ -104,10 +100,9 @@ class MainActivity : ComponentActivity() {
     private val updateCheckViewModel: UpdateCheckViewModel by viewModels {
         object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
-                val localApi = createMirrorBackendApi(NetworkConfig.LOCAL_BASE_URL, timeoutSeconds = 3)
-                val deployedApi = createMirrorBackendApi(NetworkConfig.DEPLOYED_BASE_URL, timeoutSeconds = 20)
+                val api = createMirrorBackendApi(NetworkConfig.BASE_URL, timeoutSeconds = 20)
                 @Suppress("UNCHECKED_CAST")
-                return UpdateCheckViewModel(localApi, deployedApi) as T
+                return UpdateCheckViewModel(api) as T
             }
         }
     }
@@ -117,6 +112,11 @@ class MainActivity : ComponentActivity() {
     // since the in-app update check (UpdateCheckViewModel) still works without it.
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op either way */ }
+
+    override fun onResume() {
+        super.onResume()
+        authViewModel.refreshPlan()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -134,9 +134,8 @@ class MainActivity : ComponentActivity() {
             if (!task.isSuccessful) return@addOnCompleteListener
             val token = task.result ?: return@addOnCompleteListener
             lifecycleScope.launch {
-                val localApi = createMirrorBackendApi(NetworkConfig.LOCAL_BASE_URL, timeoutSeconds = 3)
-                val deployedApi = createMirrorBackendApi(NetworkConfig.DEPLOYED_BASE_URL, timeoutSeconds = 20)
-                registerDeviceToken(localApi, deployedApi, token)
+                val api = createMirrorBackendApi(NetworkConfig.BASE_URL, timeoutSeconds = 20)
+                registerDeviceToken(api, token)
             }
         }
 

@@ -28,9 +28,7 @@ class MirrorMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         CoroutineScope(Dispatchers.IO).launch {
-            val localApi = createMirrorBackendApi(NetworkConfig.LOCAL_BASE_URL, timeoutSeconds = 3)
-            val deployedApi = createMirrorBackendApi(NetworkConfig.DEPLOYED_BASE_URL, timeoutSeconds = 20)
-            registerDeviceToken(localApi, deployedApi, token)
+            registerDeviceToken(createMirrorBackendApi(NetworkConfig.BASE_URL, timeoutSeconds = 20), token)
         }
     }
 
