@@ -16,6 +16,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mirror.app.ui.auth.AuthSessionState
 import com.mirror.app.ui.auth.AuthViewModel
+import com.mirror.app.ui.auth.EmailVerificationDialog
 import com.mirror.app.ui.auth.LoginScreen
 import com.mirror.app.ui.auth.SignUpScreen
 import com.mirror.app.ui.beforeafter.BeforeAfterScreen
@@ -49,6 +50,19 @@ fun MirrorNavHost(uploadViewModel: UploadViewModel, authViewModel: AuthViewModel
     val currentRoute = backStackEntry?.destination?.route
     val sessionState by authViewModel.sessionState.collectAsState()
     val proPlan by authViewModel.proPlan.collectAsState()
+    val verificationRequested by authViewModel.verificationRequested.collectAsState()
+    val verificationBusy by authViewModel.verificationBusy.collectAsState()
+    val verificationMessage by authViewModel.verificationMessage.collectAsState()
+
+    if (verificationRequested && sessionState is AuthSessionState.SignedIn) {
+        EmailVerificationDialog(
+            busy = verificationBusy,
+            message = verificationMessage,
+            onVerify = authViewModel::verifyEmail,
+            onSendNewCode = authViewModel::sendNewCode,
+            onDismiss = authViewModel::dismissEmailVerification
+        )
+    }
 
     // Global guard: if the session drops (e.g. Sign Out from Settings) while the user is
     // anywhere past the auth gate, bounce back to Login rather than leaving stale account

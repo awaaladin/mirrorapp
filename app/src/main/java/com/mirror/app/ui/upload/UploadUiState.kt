@@ -27,5 +27,11 @@ enum class UploadErrorMessage {
     NO_FACE_DETECTED,
     MULTIPLE_FACES_DETECTED,
     IMAGE_LOAD_FAILED,
-    LANDMARK_DETECTION_FAILED
+    LANDMARK_DETECTION_FAILED,
+
+    // A new photo is checked against the free monthly allowance before it opens.
+    VERIFY_EMAIL,
+    PHOTO_LIMIT,
+    NEEDS_INTERNET,
+    CHECK_FAILED
 }

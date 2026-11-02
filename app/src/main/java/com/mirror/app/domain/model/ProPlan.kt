@@ -5,14 +5,14 @@ package com.mirror.app.domain.model
 enum class ProPlan {
     FREE,
 
-    /** The one-time payment: no watermark, forever. */
+    /** Mirror Personal (also earlier one-time buyers): unlimited photos, no watermark. */
     SOLO,
 
-    /** Mirror Pro. Not on sale yet. */
+    /** Mirror Studio, adds Client Mode. Not on sale yet. */
     STUDIO;
 
     val removesWatermark: Boolean get() = this != FREE
-    val hasShowroom: Boolean get() = this == STUDIO
+    val unlimitedPhotos: Boolean get() = this != FREE
     val hasClientMode: Boolean get() = this == STUDIO
 
     companion object {

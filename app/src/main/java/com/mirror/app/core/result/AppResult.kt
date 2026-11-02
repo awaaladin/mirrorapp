@@ -38,4 +38,8 @@ sealed class AppError {
 
     // Generic authenticated-request failures (client directory, etc.)
     data class RequestFailed(val message: String) : AppError()
+
+    // Free allowances (mirrorcentral's app/services/entitlements.py)
+    data object EmailNotVerified : AppError()
+    data class LimitReached(val message: String) : AppError()
 }

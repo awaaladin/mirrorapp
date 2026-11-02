@@ -1,5 +1,7 @@
 package com.mirror.app.ui.editor
 
+import com.mirror.app.data.network.NetworkConfig
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -563,7 +565,7 @@ private fun UploadPrompt(onUpload: () -> Unit) {
             modifier = Modifier.padding(top = 12.dp)
         )
         Text(
-            "On-device face detection runs fully offline.",
+            "Faces are mapped on your phone. Free accounts start 10 new photos a month.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
@@ -581,7 +583,12 @@ private fun EditorErrorState(message: UploadErrorMessage, onRetry: () -> Unit) {
         UploadErrorMessage.MULTIPLE_FACES_DETECTED -> "This photo has more than one face. Mirror works best with a single face per photo for now."
         UploadErrorMessage.IMAGE_LOAD_FAILED -> "We couldn't open that image. Please try a different photo."
         UploadErrorMessage.LANDMARK_DETECTION_FAILED -> "Something went wrong while analyzing this photo. Please try again."
+        UploadErrorMessage.VERIFY_EMAIL -> "Confirm your email to start your free photos. Enter the code from your welcome email."
+        UploadErrorMessage.PHOTO_LIMIT -> "You've used this month's 10 free photos. Your saved looks still open, and the count resets next month. Mirror Personal has no photo limit."
+        UploadErrorMessage.NEEDS_INTERNET -> "Connect to the internet to start a new photo. Your saved looks open without a connection."
+        UploadErrorMessage.CHECK_FAILED -> "We couldn't check your photo allowance. Please try again."
     }
+    val context = LocalContext.current
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -589,7 +596,13 @@ private fun EditorErrorState(message: UploadErrorMessage, onRetry: () -> Unit) {
     ) {
         Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(36.dp))
         Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 12.dp))
-        Button(onClick = onRetry) { Text("TRY AGAIN", style = MaterialTheme.typography.labelMedium) }
+        if (message == UploadErrorMessage.PHOTO_LIMIT) {
+            Button(onClick = {
+                context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(NetworkConfig.PRICING_URL)))
+            }) { Text("SEE MIRROR PERSONAL", style = MaterialTheme.typography.labelMedium) }
+        } else {
+            Button(onClick = onRetry) { Text("TRY AGAIN", style = MaterialTheme.typography.labelMedium) }
+        }
     }
 }
 

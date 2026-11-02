@@ -15,6 +15,7 @@ import com.mirror.app.data.looks.LoadedLook
 import com.mirror.app.data.looks.LookStore
 import com.mirror.app.data.shades.CustomShadeStore
 import com.mirror.app.data.shades.ShadeRepository
+import com.mirror.app.data.usage.PhotoCheck
 import com.mirror.app.domain.model.FaceLandmarkResult
 import com.mirror.app.domain.model.LashStyle
 import com.mirror.app.domain.model.ShadeItem
@@ -117,7 +118,9 @@ class UploadViewModel(
     private val shadeRepository: ShadeRepository? = null,
     private val customShadeStore: CustomShadeStore? = null,
     private val decodeBitmap: suspend (Uri, ContentResolver) -> Bitmap? = ::decodeBitmapFromUri,
-    private val lookStore: LookStore? = null
+    private val lookStore: LookStore? = null,
+    // Asks whether a new photo fits this month's allowance (see UsageRepository). Null = no limit.
+    private val checkPhoto: (suspend (photoId: String) -> PhotoCheck)? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UploadUiState>(UploadUiState.Idle)
@@ -216,11 +219,23 @@ class UploadViewModel(
 
             when (val result = faceLandmarkerHelper.detect(bitmap)) {
                 is AppResult.Success -> {
-                    _uiState.value = UploadUiState.Detected(
-                        photo = bitmap,
-                        landmarks = result.data,
-                        isSteepAngle = isSteepAngle(result.data)
-                    )
+                    // Only after a face is found, so a photo that doesn't work never uses one up.
+                    val refused = when (checkPhoto?.invoke(withContext(Dispatchers.Default) { photoFingerprint(bitmap) })) {
+                        null, PhotoCheck.Allowed -> null
+                        PhotoCheck.NeedsVerification -> UploadErrorMessage.VERIFY_EMAIL
+                        is PhotoCheck.LimitReached -> UploadErrorMessage.PHOTO_LIMIT
+                        PhotoCheck.Offline -> UploadErrorMessage.NEEDS_INTERNET
+                        PhotoCheck.Failed -> UploadErrorMessage.CHECK_FAILED
+                    }
+                    _uiState.value = if (refused != null) {
+                        UploadUiState.Error(photo = bitmap, message = refused)
+                    } else {
+                        UploadUiState.Detected(
+                            photo = bitmap,
+                            landmarks = result.data,
+                            isSteepAngle = isSteepAngle(result.data)
+                        )
+                    }
                 }
                 is AppResult.Failure -> {
                     _uiState.value = UploadUiState.Error(

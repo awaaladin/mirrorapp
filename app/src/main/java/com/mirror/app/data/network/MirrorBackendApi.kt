@@ -74,6 +74,29 @@ data class LicenseRequestDto(@SerialName("device_id") val deviceId: String)
 data class LicenseResponseDto(val license: String? = null)
 
 @Serializable
+data class AllowanceDto(val used: Int, val limit: Int? = null)
+
+@Serializable
+data class UsageDto(
+    val photos: AllowanceDto,
+    val showroom: AllowanceDto,
+    @SerialName("email_verified") val emailVerified: Boolean,
+    val paid: Boolean
+)
+
+@Serializable
+data class PhotoClaimDto(@SerialName("photo_id") val photoId: String)
+
+@Serializable
+data class PhotoClaimResultDto(val allowed: Boolean, val reason: String? = null, val photos: AllowanceDto)
+
+@Serializable
+data class VerifyCodeDto(val code: String)
+
+@Serializable
+data class EmailVerifiedDto(@SerialName("email_verified") val emailVerified: Boolean)
+
+@Serializable
 data class DeviceTokenRequestDto(val token: String, val platform: String)
 
 @Serializable
@@ -149,6 +172,24 @@ interface MirrorBackendApi {
         @Header("Authorization") authorization: String,
         @Body request: LicenseRequestDto
     ): Response<LicenseResponseDto>
+
+    @GET("usage")
+    suspend fun getUsage(@Header("Authorization") authorization: String): Response<UsageDto>
+
+    @POST("usage/photo")
+    suspend fun claimPhoto(
+        @Header("Authorization") authorization: String,
+        @Body request: PhotoClaimDto
+    ): Response<PhotoClaimResultDto>
+
+    @POST("auth/email/send")
+    suspend fun sendEmailCode(@Header("Authorization") authorization: String): Response<EmailVerifiedDto>
+
+    @POST("auth/email/verify")
+    suspend fun verifyEmailCode(
+        @Header("Authorization") authorization: String,
+        @Body request: VerifyCodeDto
+    ): Response<EmailVerifiedDto>
 
     @POST("devices/register")
     suspend fun registerDeviceToken(@Body request: DeviceTokenRequestDto): Response<Unit>

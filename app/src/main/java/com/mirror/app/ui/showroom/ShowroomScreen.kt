@@ -338,7 +338,14 @@ private fun AnalysisCard(analysis: AnalysisState, onRetry: () -> Unit) {
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(top = 8.dp)
                 )
-                TextButton(onClick = onRetry) { Text("TRY AGAIN", style = MaterialTheme.typography.labelSmall) }
+                if (analysis.limitReached) {
+                    val context = LocalContext.current
+                    TextButton(onClick = {
+                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(com.mirror.app.data.network.NetworkConfig.PRICING_URL)))
+                    }) { Text("SEE MIRROR PERSONAL", style = MaterialTheme.typography.labelSmall) }
+                } else {
+                    TextButton(onClick = onRetry) { Text("TRY AGAIN", style = MaterialTheme.typography.labelSmall) }
+                }
             }
             is AnalysisState.Ready -> AnalysisSummary(analysis.analysis)
         }
@@ -446,6 +453,9 @@ private fun ShowroomError(message: UploadErrorMessage, onRetry: () -> Unit) {
         UploadErrorMessage.MULTIPLE_FACES_DETECTED -> "This photo has more than one face. Showroom works best with a single face."
         UploadErrorMessage.IMAGE_LOAD_FAILED -> "We couldn't open that image. Please try a different photo."
         UploadErrorMessage.LANDMARK_DETECTION_FAILED -> "Something went wrong while analyzing this photo. Please try again."
+        // Showroom counts analyses on the server instead; these only come from the studio's check.
+        UploadErrorMessage.VERIFY_EMAIL, UploadErrorMessage.PHOTO_LIMIT,
+        UploadErrorMessage.NEEDS_INTERNET, UploadErrorMessage.CHECK_FAILED -> "Something went wrong. Please try again."
     }
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),

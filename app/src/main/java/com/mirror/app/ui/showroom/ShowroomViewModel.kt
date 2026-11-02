@@ -41,7 +41,7 @@ sealed interface AnalysisState {
     data object Idle : AnalysisState
     data object Loading : AnalysisState
     data class Ready(val analysis: FaceAnalysis) : AnalysisState
-    data class Failed(val message: String) : AnalysisState
+    data class Failed(val message: String, val limitReached: Boolean = false) : AnalysisState
 }
 
 /** The categories Showroom offers - a small subset of the Studio's. */
@@ -68,7 +68,9 @@ private fun wireCategory(category: String): EditorCategory? = when (category.low
 class ShowroomViewModel(
     private val faceLandmarkerHelper: FaceLandmarkerHelper,
     private val repository: ShowroomRepository,
-    private val decodeBitmap: suspend (Uri, ContentResolver) -> Bitmap? = ::decodeBitmapFromUri
+    private val decodeBitmap: suspend (Uri, ContentResolver) -> Bitmap? = ::decodeBitmapFromUri,
+    // Opens the email-code dialog when the server says the address isn't confirmed yet.
+    private val onEmailNotVerified: () -> Unit = {}
 ) : ViewModel() {
 
     private val _photoState = MutableStateFlow<UploadUiState>(UploadUiState.Idle)
@@ -126,7 +128,10 @@ class ShowroomViewModel(
                     applyAiPicks(result.data)
                     _analysis.value = AnalysisState.Ready(result.data)
                 }
-                is AppResult.Failure -> _analysis.value = AnalysisState.Failed(result.error.toMessage())
+                is AppResult.Failure -> {
+                    if (result.error == AppError.EmailNotVerified) onEmailNotVerified()
+                    _analysis.value = AnalysisState.Failed(result.error.toMessage(), result.error is AppError.LimitReached)
+                }
             }
         }
     }
@@ -198,6 +203,8 @@ class ShowroomViewModel(
         AppError.NetworkUnavailable -> "No connection. Check your internet and try again."
         is AppError.AuthFailed -> message
         is AppError.RequestFailed -> message
+        AppError.EmailNotVerified -> "Confirm your email to use Showroom. Enter the code from your welcome email."
+        is AppError.LimitReached -> "$message Mirror Personal gives you 30 a month."
         else -> "Something went wrong. Please try again."
     }
 }

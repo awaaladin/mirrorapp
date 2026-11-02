@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.mirror.app.core.result.AppError
 import com.mirror.app.core.result.AppResult
 import com.mirror.app.data.license.LicenseRepository
+import com.mirror.app.data.network.UsageDto
+import com.mirror.app.data.usage.UsageRepository
 import com.mirror.app.domain.model.AuthUser
 import com.mirror.app.domain.model.ProPlan
 import com.mirror.app.domain.repository.AuthRepository
@@ -31,10 +33,40 @@ sealed class AuthFormState {
 
 class AuthViewModel(
     private val authRepository: AuthRepository,
-    private val licenseRepository: LicenseRepository
+    private val licenseRepository: LicenseRepository,
+    private val usageRepository: UsageRepository
 ) : ViewModel() {
 
     val proPlan: StateFlow<ProPlan> = licenseRepository.plan
+    val usage: StateFlow<UsageDto?> = usageRepository.usage
+    val verificationRequested: StateFlow<Boolean> = usageRepository.verificationRequested
+
+    private val _verificationBusy = MutableStateFlow(false)
+    val verificationBusy: StateFlow<Boolean> = _verificationBusy.asStateFlow()
+    private val _verificationMessage = MutableStateFlow<String?>(null)
+    val verificationMessage: StateFlow<String?> = _verificationMessage.asStateFlow()
+
+    fun requestEmailVerification() = usageRepository.requestVerification()
+
+    fun dismissEmailVerification() {
+        _verificationMessage.value = null
+        usageRepository.dismissVerification()
+    }
+
+    fun verifyEmail(code: String) = runVerification { usageRepository.verify(code) }
+
+    fun sendNewCode() = runVerification(sentMessage = "We sent a new code.") { usageRepository.sendCode() }
+
+    private fun runVerification(sentMessage: String? = null, call: suspend () -> AppResult<Unit>) {
+        _verificationBusy.value = true
+        viewModelScope.launch {
+            _verificationMessage.value = when (val result = call()) {
+                is AppResult.Success -> sentMessage
+                is AppResult.Failure -> result.error.toMessage()
+            }
+            _verificationBusy.value = false
+        }
+    }
 
     val sessionState: StateFlow<AuthSessionState> = authRepository.observeCurrentUser()
         .map { user -> if (user != null) AuthSessionState.SignedIn(user) else AuthSessionState.SignedOut }
@@ -52,7 +84,9 @@ class AuthViewModel(
     /** Picks up a plan bought on the website when someone comes back to the app. */
     fun refreshPlan() {
         viewModelScope.launch {
-            licenseRepository.checkIn(authRepository.observeCurrentUser().first())
+            val user = authRepository.observeCurrentUser().first()
+            licenseRepository.checkIn(user)
+            if (user != null) usageRepository.refreshUsage()
         }
     }
 

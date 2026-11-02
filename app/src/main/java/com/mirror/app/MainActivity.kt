@@ -24,6 +24,8 @@ import com.mirror.app.data.auth.SessionStore
 import com.mirror.app.data.clients.ClientRepository
 import com.mirror.app.data.landmark.FaceLandmarkerHelper
 import com.mirror.app.data.license.LicenseRepository
+import com.mirror.app.data.usage.PhotoCheck
+import com.mirror.app.data.usage.UsageRepository
 import com.mirror.app.data.looks.LookStore
 import com.mirror.app.data.network.NetworkConfig
 import com.mirror.app.data.network.createMirrorBackendApi
@@ -46,6 +48,11 @@ class MainActivity : ComponentActivity() {
     // Manual construction for MVP - no DI framework wired up yet. FaceLandmarkerHelper
     // holds native resources released in UploadViewModel.onCleared(), so the ViewModel must
     // survive configuration changes rather than being rebuilt on every recomposition.
+    // Shared by the studio (photo allowance), Showroom and the email-code dialog.
+    private val usageRepository by lazy {
+        UsageRepository(createMirrorBackendApi(NetworkConfig.BASE_URL, timeoutSeconds = 20), SessionStore(applicationContext))
+    }
+
     private val uploadViewModel: UploadViewModel by viewModels {
         object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
@@ -55,7 +62,10 @@ class MainActivity : ComponentActivity() {
                     FaceLandmarkerHelper(applicationContext),
                     ShadeRepository(api),
                     CustomShadeStore(applicationContext),
-                    lookStore = LookStore(applicationContext)
+                    lookStore = LookStore(applicationContext),
+                    checkPhoto = { photoId ->
+                        if (authViewModel.proPlan.value.unlimitedPhotos) PhotoCheck.Allowed else usageRepository.checkPhoto(photoId)
+                    }
                 ) as T
             }
         }
@@ -67,7 +77,7 @@ class MainActivity : ComponentActivity() {
                 val api = createMirrorBackendApi(NetworkConfig.BASE_URL, timeoutSeconds = 20)
                 @Suppress("UNCHECKED_CAST")
                 val sessionStore = SessionStore(applicationContext)
-                return AuthViewModel(BackendAuthRepository(api, sessionStore), LicenseRepository(api, sessionStore)) as T
+                return AuthViewModel(BackendAuthRepository(api, sessionStore), LicenseRepository(api, sessionStore), usageRepository) as T
             }
         }
     }
@@ -91,7 +101,8 @@ class MainActivity : ComponentActivity() {
                 @Suppress("UNCHECKED_CAST")
                 return ShowroomViewModel(
                     FaceLandmarkerHelper(applicationContext),
-                    ShowroomRepository(api, SessionStore(applicationContext))
+                    ShowroomRepository(api, SessionStore(applicationContext)),
+                    onEmailNotVerified = { usageRepository.requestVerification() }
                 ) as T
             }
         }

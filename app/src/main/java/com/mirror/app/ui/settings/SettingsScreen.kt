@@ -35,6 +35,7 @@ fun SettingsScreen(authViewModel: AuthViewModel) {
     val user = (sessionState as? AuthSessionState.SignedIn)?.user
     val email = user?.email
     val proPlan by authViewModel.proPlan.collectAsState()
+    val usage by authViewModel.usage.collectAsState()
     val isPro = proPlan != ProPlan.FREE
     val context = LocalContext.current
 
@@ -68,8 +69,8 @@ fun SettingsScreen(authViewModel: AuthViewModel) {
             Text(
                 when (proPlan) {
                     ProPlan.FREE -> "FREE ACCOUNT"
-                    ProPlan.SOLO -> "UNLOCKED FOREVER"
-                    ProPlan.STUDIO -> "MIRROR PRO"
+                    ProPlan.SOLO -> "MIRROR PERSONAL"
+                    ProPlan.STUDIO -> "MIRROR STUDIO"
                 },
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
@@ -79,14 +80,34 @@ fun SettingsScreen(authViewModel: AuthViewModel) {
 
         Text(
             when (proPlan) {
-                ProPlan.FREE -> "Mirror is free. Looks you share carry a small watermark - one ₦7,500 payment removes it forever. Pay on mirror's website with the same email you use to sign in here."
-                ProPlan.SOLO -> "Your one-time payment is on this account. Shared looks have no watermark, for good."
-                ProPlan.STUDIO -> "Your plan includes Showroom AI skin analysis and Client Mode - manage client profiles from the Clients tab."
+                ProPlan.FREE -> "Free accounts get 10 new photos and 3 Showroom analyses a month, and shared looks carry a small watermark. Mirror Personal removes the photo limit and the watermark and gives 30 Showroom analyses, for ₦2,000 per 30 days. Pay on mirror's website with the same email you use here."
+                ProPlan.SOLO -> "Unlimited photos, 30 Showroom analyses a month and no watermark."
+                ProPlan.STUDIO -> "Unlimited photos, 100 Showroom analyses a month, no watermark and Client Mode - manage client profiles from the Clients tab."
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
         )
+
+        usage?.let { current ->
+            Text(
+                buildString {
+                    append("This month: ")
+                    append(current.photos.limit?.let { "${current.photos.used} of $it photos" } ?: "${current.photos.used} photos")
+                    append(" · ${current.showroom.used} of ${current.showroom.limit} Showroom")
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+            if (!current.emailVerified && !current.paid) {
+                OutlinedButton(
+                    onClick = { authViewModel.requestEmailVerification() },
+                    modifier = Modifier.fillMaxWidth().height(44.dp).padding(bottom = 4.dp)
+                ) { Text("CONFIRM YOUR EMAIL", style = MaterialTheme.typography.labelMedium) }
+                androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
 
         if (!isPro) {
             Button(
@@ -96,7 +117,7 @@ fun SettingsScreen(authViewModel: AuthViewModel) {
                 modifier = Modifier.fillMaxWidth().height(44.dp)
             ) {
                 Icon(Icons.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                Text("REMOVE WATERMARK · ₦7,500 ONCE", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
+                Text("GET MIRROR PERSONAL · ₦2,000", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
             }
             androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(12.dp))
         }

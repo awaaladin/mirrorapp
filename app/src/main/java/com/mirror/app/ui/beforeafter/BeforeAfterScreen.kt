@@ -1,6 +1,7 @@
 package com.mirror.app.ui.beforeafter
 
 import android.content.Intent
+import android.widget.Toast
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -23,9 +24,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -50,6 +53,7 @@ import com.mirror.app.ui.editor.EditorCategory
 import com.mirror.app.ui.editor.cropToFace
 import com.mirror.app.ui.editor.renderMakeupBitmap
 import com.mirror.app.ui.editor.resolveMakeupLayer
+import com.mirror.app.ui.share.saveLookToPhone
 import com.mirror.app.ui.share.shareLook
 import com.mirror.app.ui.upload.UploadUiState
 import com.mirror.app.ui.upload.UploadViewModel
@@ -198,19 +202,31 @@ fun BeforeAfterScreen(viewModel: UploadViewModel, proPlan: ProPlan, onBack: () -
                     Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(16.dp))
                     Text("SHARE LOOK", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
                 }
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            val saved = saveLookToPhone(context, afterBitmap, withWatermark = !proPlan.removesWatermark)
+                            Toast.makeText(context, if (saved) "Saved to your photos" else "Couldn't save - try SHARE LOOK", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp).padding(top = 8.dp)
+                ) {
+                    Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Text("SAVE TO PHONE", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
+                }
             }
 
             if (!proPlan.removesWatermark) {
                 item {
                     Text(
-                        "Shared looks carry a small mirror watermark.",
+                        "Saved and shared looks carry a small mirror watermark.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     TextButton(onClick = {
                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(NetworkConfig.PRICING_URL)))
                     }) {
-                        Text("REMOVE IT FOREVER · ONE-TIME ₦7,500", style = MaterialTheme.typography.labelMedium)
+                        Text("REMOVE IT · MIRROR PERSONAL ₦2,000", style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }

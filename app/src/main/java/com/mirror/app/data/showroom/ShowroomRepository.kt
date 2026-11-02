@@ -43,7 +43,13 @@ class ShowroomRepository(
             response = send(token, part) ?: return AppResult.Failure(AppError.NetworkUnavailable)
         }
         if (!response.isSuccessful) {
-            return AppResult.Failure(AppError.RequestFailed(parseErrorMessage(response)))
+            return AppResult.Failure(
+                when (response.headers()["X-Mirror-Reason"]) {
+                    "verify_email" -> AppError.EmailNotVerified
+                    "limit" -> AppError.LimitReached(parseErrorMessage(response))
+                    else -> AppError.RequestFailed(parseErrorMessage(response))
+                }
+            )
         }
         val body = response.body() ?: return AppResult.Failure(AppError.RequestFailed("Empty response."))
         return AppResult.Success(body.toDomain())
@@ -59,7 +65,6 @@ class ShowroomRepository(
     private fun parseErrorMessage(response: Response<*>): String {
         val fallback = when (response.code()) {
             413 -> "That photo is too large."
-            403 -> "Showroom is part of Mirror Pro."
             429 -> "You've used this month's Showroom analyses."
             502, 503 -> "Showroom analysis is unavailable right now. Please try again shortly."
             else -> "Something went wrong. Please try again."
