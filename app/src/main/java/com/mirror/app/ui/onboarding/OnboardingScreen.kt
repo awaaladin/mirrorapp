@@ -21,7 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Adjust
 import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Checkroom
+import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -57,9 +57,9 @@ private val pillars = listOf(
         PillarAccent.SECONDARY
     ),
     Pillar(
-        Icons.Filled.Checkroom,
-        "Gele & Hair Styling Integration",
-        "Preview complete ceremonial headwraps and textured installations in accurate, lifelike lighting.",
+        Icons.Filled.Face,
+        "Showroom Skin Analysis",
+        "Let Showroom read your skin tone and undertone, then try the shades it suggests.",
         PillarAccent.TERTIARY
     )
 )

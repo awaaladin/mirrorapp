@@ -226,7 +226,7 @@ fun BeforeAfterScreen(viewModel: UploadViewModel, proPlan: ProPlan, onBack: () -
                     TextButton(onClick = {
                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(NetworkConfig.PRICING_URL)))
                     }) {
-                        Text("REMOVE IT · MIRROR PERSONAL ₦2,000", style = MaterialTheme.typography.labelMedium)
+                        Text("REMOVE IT · MIRROR PERSONAL ₦7,500", style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }

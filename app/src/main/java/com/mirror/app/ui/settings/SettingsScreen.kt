@@ -80,7 +80,7 @@ fun SettingsScreen(authViewModel: AuthViewModel) {
 
         Text(
             when (proPlan) {
-                ProPlan.FREE -> "Free accounts get 10 new photos and 3 Showroom analyses a month, and shared looks carry a small watermark. Mirror Personal removes the photo limit and the watermark and gives 30 Showroom analyses, for ₦2,000 per 30 days. Pay on mirror's website with the same email you use here."
+                ProPlan.FREE -> "Free accounts get 10 new photos and 3 Showroom analyses a month, and shared looks carry a small watermark. Mirror Personal removes the photo limit and the watermark and gives 30 Showroom analyses, for ₦7,500 a month. Pay on mirror's website with the same email you use here."
                 ProPlan.SOLO -> "Unlimited photos, 30 Showroom analyses a month and no watermark."
                 ProPlan.STUDIO -> "Unlimited photos, 100 Showroom analyses a month, no watermark and Client Mode - manage client profiles from the Clients tab."
             },
@@ -117,7 +117,7 @@ fun SettingsScreen(authViewModel: AuthViewModel) {
                 modifier = Modifier.fillMaxWidth().height(44.dp)
             ) {
                 Icon(Icons.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                Text("GET MIRROR PERSONAL · ₦2,000", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
+                Text("GET MIRROR PERSONAL · ₦7,500", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
             }
             androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(12.dp))
         }
