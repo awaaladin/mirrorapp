@@ -28,6 +28,7 @@ import com.mirror.app.ui.editor.isSteepAngle
 import com.mirror.app.ui.editor.renderMakeupBitmap
 import com.mirror.app.ui.editor.resolveMakeupLayer
 import com.mirror.app.ui.editor.toShadeCategory
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -83,16 +84,26 @@ internal suspend fun decodeBitmapFromUri(uri: Uri, contentResolver: ContentResol
                 ExifInterface.ORIENTATION_NORMAL
             }
             applyExifOrientation(decoded, orientation)
-        } catch (e: IOException) {
-            null
-        } catch (e: SecurityException) {
-            null
-        } catch (e: OutOfMemoryError) {
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            // Unreadable file, revoked permission, a format the decoder chokes on, out of memory:
+            // all mean "couldn't load this photo", never a closed app.
             null
         }
     }
 
 private const val MAX_DECODE_SIDE = 2048
+
+/**
+ * Last line of defence for the photo flow: anything unexpected that escapes while a picked photo is
+ * being loaded, checked or measured becomes an on-screen error instead of closing the app. The
+ * crash is still recorded (see CrashReporter) so it can be fixed properly.
+ */
+internal fun photoFailureHandler(show: (UploadUiState) -> Unit) = CoroutineExceptionHandler { _, error ->
+    com.mirror.app.core.crash.CrashReporter.recordHandled(error)
+    show(UploadUiState.Error(photo = null, message = UploadErrorMessage.LANDMARK_DETECTION_FAILED))
+}
 
 /** Returns [bitmap] rotated/flipped upright for an EXIF orientation value (recycling the original
  *  when a new bitmap is made). Orientation 1 / unknown values return [bitmap] untouched. */
@@ -207,7 +218,7 @@ class UploadViewModel(
         _uiState.value = UploadUiState.Detecting
         _selections.value = emptyMap()
         _lashStyle.value = null
-        viewModelScope.launch {
+        viewModelScope.launch(photoFailureHandler { _uiState.value = it }) {
             val bitmap = decodeBitmap(uri, contentResolver)
             if (bitmap == null) {
                 _uiState.value = UploadUiState.Error(

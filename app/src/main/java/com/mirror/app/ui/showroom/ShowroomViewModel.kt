@@ -21,6 +21,8 @@ import com.mirror.app.ui.editor.toShadeCategory
 import com.mirror.app.ui.upload.UploadErrorMessage
 import com.mirror.app.ui.upload.UploadUiState
 import com.mirror.app.ui.upload.decodeBitmapFromUri
+import com.mirror.app.ui.upload.photoFailureHandler
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -93,7 +95,7 @@ class ShowroomViewModel(
     fun onPhotoPicked(uri: Uri, contentResolver: ContentResolver) {
         resetResults()
         _photoState.value = UploadUiState.Detecting
-        viewModelScope.launch {
+        viewModelScope.launch(photoFailureHandler { _photoState.value = it }) {
             val bitmap = decodeBitmap(uri, contentResolver)
             if (bitmap == null) {
                 _photoState.value = UploadUiState.Error(null, UploadErrorMessage.IMAGE_LOAD_FAILED)
@@ -121,7 +123,10 @@ class ShowroomViewModel(
 
     private fun analyze(photo: Bitmap) {
         _analysis.value = AnalysisState.Loading
-        viewModelScope.launch {
+        viewModelScope.launch(CoroutineExceptionHandler { _, error ->
+            com.mirror.app.core.crash.CrashReporter.recordHandled(error)
+            _analysis.value = AnalysisState.Failed("Showroom analysis failed. Please try again.")
+        }) {
             val jpeg = withContext(Dispatchers.Default) { photo.toUploadJpeg() }
             when (val result = repository.analyze(jpeg)) {
                 is AppResult.Success -> {

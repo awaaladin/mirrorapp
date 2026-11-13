@@ -4,14 +4,15 @@ import com.mirror.app.data.network.MirrorBackendApi
 import com.mirror.app.data.network.RefreshRequestDto
 import com.mirror.app.domain.model.AuthUser
 import retrofit2.Response
-import java.io.IOException
 
 /** Trades the stored refresh token for a new access token, or null if that isn't possible. */
 suspend fun refreshAccessToken(api: MirrorBackendApi, sessionStore: SessionStore): String? {
     val refreshToken = sessionStore.loadRefreshToken() ?: return null
     val response = try {
         api.refresh(RefreshRequestDto(refreshToken))
-    } catch (e: IOException) {
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
         return null
     }
     val body = response.takeIf { it.isSuccessful }?.body() ?: return null
@@ -32,7 +33,10 @@ suspend fun <T> withFreshToken(
         if (response.code() != 401) return response
         val fresh = refreshAccessToken(api, sessionStore) ?: return null
         call("Bearer $fresh")
-    } catch (e: IOException) {
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        // IOException = offline; anything else (a reply that doesn't parse) must not close the app.
         null
     }
 }

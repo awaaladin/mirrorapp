@@ -15,7 +15,6 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Response
-import java.io.IOException
 
 /**
  * Sends a portrait to mirrorcentral's Gemini-backed /showroom/analyze and returns the analysis.
@@ -58,7 +57,9 @@ class ShowroomRepository(
     private suspend fun send(token: String, part: MultipartBody.Part): Response<FaceAnalysisDto>? =
         try {
             api.analyzeFace("Bearer $token", part)
-        } catch (e: IOException) {
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
             null
         }
 

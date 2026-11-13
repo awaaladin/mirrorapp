@@ -58,7 +58,13 @@ class FaceLandmarkerHelper(private val context: Context) {
             val result: FaceLandmarkerResult = try {
                 val mpImage = BitmapImageBuilder(bitmap).build()
                 getOrCreateLandmarker().detect(mpImage)
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                // Throwable, not Exception: MediaPipe's native library failing to load
+                // (UnsatisfiedLinkError) or running out of memory on a budget phone are Errors,
+                // and an uncaught one closes the whole app instead of showing a message.
+                close()
                 return@withContext AppResult.Failure(AppError.LandmarkDetectionFailed)
             }
 
